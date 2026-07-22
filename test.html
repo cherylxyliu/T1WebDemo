@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>替身 验收测试</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #101010;
+            color: #f4f4f4;
+        }
+        h1 { margin: 0 0 12px; font-size: 24px; }
+        p { margin: 0 0 20px; color: #a0a0a0; }
+        .pass { color: #74ff9e; }
+        .fail { color: #ff6b6b; }
+        ul { padding-left: 20px; line-height: 1.7; }
+        code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 6px; }
+        iframe { width: 390px; height: 844px; border: 1px solid #333; border-radius: 20px; margin-top: 20px; background: #000; }
+    </style>
+</head>
+<body>
+    <h1 id="summary">运行中...</h1>
+    <p>这页会加载 <code>index.html?test=1</code>，检查前半段重构的关键交互是否具备。</p>
+    <ul id="results"></ul>
+    <iframe id="game-frame" src="./index.html?test=1" title="替身测试沙盒"></iframe>
+
+    <script>
+        const resultsEl = document.getElementById('results');
+        const summaryEl = document.getElementById('summary');
+
+        function addResult(ok, message) {
+            const li = document.createElement('li');
+            li.className = ok ? 'pass' : 'fail';
+            li.textContent = `${ok ? 'PASS' : 'FAIL'} - ${message}`;
+            resultsEl.appendChild(li);
+            return ok;
+        }
+
+        function finish(total, passed) {
+            const failed = total - passed;
+            summaryEl.textContent = failed === 0 ? `PASS ${passed}/${total}` : `FAIL ${passed}/${total}`;
+            summaryEl.className = failed === 0 ? 'pass' : 'fail';
+            document.title = summaryEl.textContent;
+        }
+
+        async function run() {
+            const frame = document.getElementById('game-frame');
+            await new Promise(resolve => frame.addEventListener('load', resolve, { once: true }));
+            await new Promise(resolve => setTimeout(resolve, 300));
+
+            const win = frame.contentWindow;
+            const doc = frame.contentDocument;
+            let total = 0;
+            let passed = 0;
+
+            total++;
+            if (addResult(Boolean(win.__gameTestAPI), '暴露测试 API 供状态校验')) passed++;
+            if (!win.__gameTestAPI) {
+                finish(total, passed);
+                return;
+            }
+
+            const api = win.__gameTestAPI;
+            api.resetForTest('测试用户');
+
+            total++;
+            api.showMonologueForTest('电影字幕式独白');
+            const monologue = doc.getElementById('monologue-text');
+            if (addResult(monologue && monologue.textContent.includes('电影字幕式独白'), '底部独白条可单独显示文本')) passed++;
+
+            total++;
+            const thumb = api.getThumbState();
+            if (addResult(Boolean(thumb && thumb.mode && thumb.text), '全局大拇指引导存在且可读取状态')) passed++;
+
+            total++;
+            api.startMapForTest();
+            const navKnob = doc.getElementById('nav-knob');
+            if (addResult(Boolean(navKnob), '地图阶段存在底部方向拖拽控件')) passed++;
+
+            total++;
+            api.openCameraEventForTest();
+            const cameraEvent = doc.getElementById('event-camera');
+            if (addResult(cameraEvent && cameraEvent.style.display === 'flex', '存在相机权限剧情阶段')) passed++;
+
+            total++;
+            api.openPuzzleForTest();
+            const beforePuzzle = api.getPuzzleState();
+            api.placePuzzlePieceForTest('piece-1', false);
+            const afterWrongDrop = api.getPuzzleState();
+            const wrongDropProtected = beforePuzzle.placed === afterWrongDrop.placed;
+            if (addResult(wrongDropProtected, '拼图错误放置不会直接算完成')) passed++;
+
+            total++;
+            ['piece-1', 'piece-2', 'piece-3', 'piece-4'].forEach(id => api.placePuzzlePieceForTest(id, true));
+            const afterCorrectDrop = api.getPuzzleState();
+            if (addResult(afterCorrectDrop.placed === 4 && afterCorrectDrop.completed, '拼图全部吸附后才会完成')) passed++;
+
+            finish(total, passed);
+        }
+
+        run().catch(error => {
+            addResult(false, `测试页执行异常: ${error.message}`);
+            finish(resultsEl.children.length || 1, 0);
+        });
+    </script>
+</body>
+</html>

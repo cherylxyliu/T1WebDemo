@@ -3,519 +3,2179 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <!-- iOS Web App 适配 -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="替身">
     <meta name="format-detection" content="telephone=no">
-    <!-- PWA 图标（可选，添加到主屏后显示） -->
-    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23000'/><text x='50' y='65' font-size='50' text-anchor='middle' fill='%23fff'>替</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%23000'/><text x='50' y='62' font-size='46' text-anchor='middle' fill='%23fff'>替</text></svg>">
     <title>替身 (Doppelgänger)</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, sans-serif; touch-action: none; }
-        body { background-color: #000; color: #fff; overflow: hidden; display: flex; justify-content: center; user-select: none;
-               /* iOS 安全区域适配：iPhone X+ 刘海屏 / 底部横条 */
-               padding-top: env(safe-area-inset-top);
-               padding-bottom: env(safe-area-inset-bottom);
-               padding-left: env(safe-area-inset-left);
-               padding-right: env(safe-area-inset-right);
+        :root {
+            --bg: #050505;
+            --panel: #151515;
+            --panel-soft: #1d1d1d;
+            --line: rgba(255,255,255,0.08);
+            --line-strong: rgba(255,255,255,0.16);
+            --text: #f5f5f5;
+            --muted: #9b9b9b;
+            --blue: #56a7ff;
+            --red: #ff5f6d;
+            --gold: #e7c481;
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
+            --mono-bottom: calc(116px + var(--safe-bottom));
         }
-        #app { width: 100vw; max-width: 450px; height: 100vh; background-color: #121212; position: relative; overflow: hidden; }
-        
-        .screen { display: none; width: 100%; height: 100%; flex-direction: column; position: absolute; top: 0; left: 0; }
-        .active { display: flex; }
-        
-        /* 通用UI */
-        .btn { background: #fff; color: #000; padding: 15px; border-radius: 25px; text-align: center; font-weight: bold; margin: 10px 20px; cursor: pointer; transition: 0.2s; }
-        .btn:active { background: #ccc; }
-        .input-box { background: #222; border: 1px solid #333; color: #fff; padding: 15px; border-radius: 10px; margin: 10px 20px; outline: none; font-size: 16px; width: calc(100% - 40px); }
-        .title { font-size: 24px; font-weight: bold; margin: 40px 20px 10px; }
-        .monologue { position: absolute; bottom: 150px; width: 100%; text-align: center; color: #ccc; font-style: italic; font-size: 15px; opacity: 0; transition: opacity 0.5s; pointer-events: none; z-index: 100; text-shadow: 1px 1px 2px #000; }
-        
-        /* 阶段一：注册 */
-        .sms-toast { position: absolute; top: -100px; left: 10px; right: 10px; background: #fff; color: #000; padding: 15px; border-radius: 15px; transition: top 0.3s ease; box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 100; }
-        .sms-toast.show { top: 20px; }
-        
-        /* 阶段二：刷卡 */
-        .card-container { flex: 1; position: relative; margin: 20px; perspective: 1000px; display: flex; justify-content: center; align-items: center; }
-        .card { position: absolute; width: 100%; height: 80%; background: #2a2a2a; border-radius: 20px; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); transition: transform 0.3s ease; }
-        .card.black-card { background: #050505; color: #555; border: 1px solid #222; }
-        .match-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 50; display: none; flex-direction: column; justify-content: center; align-items: center; }
-        
-        /* 阶段三：导航移动 */
-        .map-bg { flex: 1; background: #0a0e17; position: relative; }
-        .top-bar { background: rgba(10,14,23,0.9); padding: 20px; text-align: center; border-bottom: 1px solid #1a2436; z-index: 10; relative; }
-        .map-path { position: absolute; bottom: 20%; left: 50%; width: 4px; height: 60%; background: #4a90e2; transform: translateX(-50%); }
-        .player-arrow { position: absolute; bottom: 20%; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 20px solid #4a90e2; z-index: 5; }
-        .hold-area { position: absolute; bottom: 0; width: 100%; height: 50%; display: flex; justify-content: center; align-items: flex-end; padding-bottom: 40px; }
-        .hold-btn { width: 100px; height: 100px; border: 2px solid #4a90e2; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: #4a90e2; font-size: 14px; background: rgba(74, 144, 226, 0.1); transition: transform 0.1s; }
-        
-        /* 交互事件容器 */
-        .event-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 60; display: none; flex-direction: column; justify-content: center; align-items: center; }
-        
-        /* 跳一跳水坑 */
-        .puddle { width: 120px; height: 40px; background: #333; border-radius: 50%; margin-bottom: 50px; border: 2px solid #444; }
-        .jump-btn { width: 120px; height: 120px; background: #4a90e2; color: #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 18px; font-weight: bold; }
-        .jump-btn.charging { transform: scale(0.8); background: #357abd; }
-        
-        /* 拼凑墓碑 */
-        .puzzle-area { width: 300px; height: 400px; border: 1px dashed #444; position: relative; margin-bottom: 30px; background: #111; }
-        .puzzle-piece { position: absolute; width: 120px; height: 100px; background: #555; color: #aaa; display: flex; justify-content: center; align-items: center; font-size: 14px; text-align: center; border: 1px solid #222; box-shadow: 2px 2px 10px rgba(0,0,0,0.8); z-index: 10; }
-        .puzzle-target { width: 200px; height: 300px; position: absolute; top: 50px; left: 50px; border: 1px solid #333; display: flex; flex-direction: column; opacity: 0; transition: opacity 1s; background: #222; justify-content: center; align-items: center; text-align: center;}
-        
-        /* 资料页更新 */
-        .profile-page { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #121212; z-index: 80; display: none; flex-direction: column; padding: 20px; }
-        .avatar-silhouette { width: 100px; height: 100px; background: #333; border-radius: 50%; margin: 40px auto 20px; border: 2px dashed #666; }
-        
-        /* 通知系统 */
-        .sys-notify { position: absolute; top: -100px; left: 10px; right: 10px; background: #333; color: #fff; padding: 15px; border-radius: 10px; transition: top 0.3s; z-index: 90; text-align: center; border: 1px solid #555; cursor: pointer;}
-        .sys-notify.show { top: 20px; }
-        
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: none;
+            user-select: none;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--text);
+            padding-top: var(--safe-top);
+            padding-bottom: var(--safe-bottom);
+            padding-left: env(safe-area-inset-left, 0px);
+            padding-right: env(safe-area-inset-right, 0px);
+        }
+
+        #app {
+            position: relative;
+            width: 100vw;
+            max-width: 450px;
+            height: 100vh;
+            height: 100dvh;
+            background:
+                radial-gradient(circle at top, rgba(86,167,255,0.12), transparent 28%),
+                linear-gradient(180deg, #131313 0%, #080808 100%);
+            overflow: hidden;
+        }
+
+        .screen {
+            display: none;
+            position: absolute;
+            inset: 0;
+            flex-direction: column;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 999px;
+            padding: 15px 18px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.18s ease, opacity 0.18s ease, background 0.18s ease;
+        }
+
+        .btn:active {
+            transform: scale(0.96);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #ffffff 0%, #dcdcdc 100%);
+            color: #050505;
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.08);
+            color: var(--text);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6c7a 0%, #ff4458 100%);
+            color: #fff;
+        }
+
+        .input-box {
+            width: 100%;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: var(--text);
+            border-radius: 18px;
+            padding: 16px 18px;
+            font-size: 16px;
+            outline: none;
+        }
+
+        .input-box:disabled {
+            color: #6b6b6b;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.08);
+            color: #d7d7d7;
+            font-size: 12px;
+        }
+
+        .sms-toast,
+        .sys-notify {
+            position: absolute;
+            left: 12px;
+            right: 12px;
+            z-index: 90;
+            border-radius: 18px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 12px 28px rgba(0,0,0,0.28);
+            transform: translateY(-120px);
+            transition: transform 0.3s ease;
+        }
+
+        .sms-toast {
+            top: calc(12px + var(--safe-top));
+            background: rgba(255,255,255,0.92);
+            color: #000;
+            padding: 15px;
+        }
+
+        .sys-notify {
+            top: calc(88px + var(--safe-top));
+            background: rgba(28,28,28,0.92);
+            color: var(--text);
+            padding: 16px;
+            border: 1px solid rgba(255,255,255,0.08);
+            cursor: pointer;
+        }
+
+        .sms-toast.show,
+        .sys-notify.show {
+            transform: translateY(0);
+        }
+
+        .monologue-bar {
+            position: absolute;
+            left: 14px;
+            right: 14px;
+            bottom: var(--mono-bottom);
+            min-height: 72px;
+            padding: 12px 14px 14px;
+            background: rgba(0,0,0,0.86);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 18px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity 0.25s ease, transform 0.25s ease;
+            pointer-events: none;
+            z-index: 80;
+        }
+
+        .monologue-bar.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .mono-label {
+            color: #d3ae6a;
+            font-size: 11px;
+            letter-spacing: 0.22em;
+            margin-bottom: 8px;
+        }
+
+        .mono-text {
+            color: #f4f4f4;
+            font-size: 15px;
+            line-height: 1.5;
+            font-style: italic;
+        }
+
+        .thumb-guide {
+            position: absolute;
+            right: 18px;
+            bottom: calc(18px + var(--safe-bottom));
+            z-index: 85;
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            pointer-events: none;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        .thumb-guide.hidden {
+            opacity: 0;
+        }
+
+        .thumb-bubble {
+            max-width: 200px;
+            padding: 10px 12px;
+            border-radius: 16px;
+            background: rgba(8,8,8,0.88);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: #f1f1f1;
+            font-size: 13px;
+            line-height: 1.45;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.32);
+        }
+
+        .thumb-ghost {
+            position: absolute;
+            width: 64px;
+            height: 64px;
+            right: 0;
+            bottom: 0;
+            border-radius: 50%;
+            border: 1px dashed rgba(255,255,255,0.18);
+            opacity: 0.36;
+        }
+
+        .thumb-icon {
+            position: relative;
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at 30% 30%, #ffe2c2 0%, #ffcb95 48%, #e5a96e 100%);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.36);
+            font-size: 34px;
+            filter: saturate(0.95);
+        }
+
+        .thumb-guide[data-mode="swipe"] .thumb-icon {
+            animation: thumbSwipe 1.9s infinite ease-in-out;
+        }
+
+        .thumb-guide[data-mode="drag-direction"] {
+            right: auto;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .thumb-guide[data-mode="drag-direction"] .thumb-icon {
+            animation: thumbNav 1.8s infinite ease-in-out;
+        }
+
+        .thumb-guide[data-mode="hold"] .thumb-icon,
+        .thumb-guide[data-mode="tap"] .thumb-icon {
+            animation: thumbHold 1.8s infinite ease-in-out;
+        }
+
+        .thumb-guide[data-mode="drag-piece"] .thumb-icon {
+            animation: thumbPuzzle 2.1s infinite ease-in-out;
+        }
+
+        .thumb-guide[data-mode="warning"] .thumb-icon {
+            animation: thumbWarning 0.8s infinite ease-in-out;
+        }
+
+        @keyframes thumbSwipe {
+            0%, 100% { transform: translateX(0) rotate(-8deg); }
+            40% { transform: translateX(-18px) rotate(-14deg); }
+            70% { transform: translateX(18px) rotate(8deg); }
+        }
+
+        @keyframes thumbNav {
+            0%, 100% { transform: translate(0, 0); }
+            35% { transform: translate(-18px, -10px); }
+            70% { transform: translate(20px, -16px); }
+        }
+
+        @keyframes thumbHold {
+            0%, 100% { transform: scale(1); }
+            35% { transform: scale(0.9); }
+            65% { transform: scale(1); }
+        }
+
+        @keyframes thumbPuzzle {
+            0%, 100% { transform: translate(0, 0); }
+            45% { transform: translate(-22px, -14px); }
+            70% { transform: translate(-18px, -54px); }
+        }
+
+        @keyframes thumbWarning {
+            0%, 100% { transform: rotate(-6deg); }
+            50% { transform: rotate(6deg); }
+        }
+
+        .noise {
+            position: absolute;
+            inset: 0;
+            opacity: 0.12;
+            background-image:
+                radial-gradient(circle at 20% 20%, rgba(255,255,255,0.28) 0 1px, transparent 1px),
+                radial-gradient(circle at 80% 60%, rgba(255,255,255,0.2) 0 1px, transparent 1px),
+                radial-gradient(circle at 40% 80%, rgba(255,255,255,0.16) 0 1px, transparent 1px);
+            background-size: 28px 28px;
+            pointer-events: none;
+        }
+
+        .hero-panel {
+            padding: calc(26px + var(--safe-top)) 22px 28px;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        .reg-card {
+            margin-top: 18px;
+            padding: 20px;
+            border-radius: 24px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.26);
+        }
+
+        .small-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .app-shell {
+            flex: 1;
+            padding: calc(18px + var(--safe-top)) 14px 110px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .swipe-head {
+            padding: 6px 8px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .swipe-title {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .swipe-title h2 {
+            font-size: 22px;
+        }
+
+        .swipe-title p {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .card-container {
+            position: relative;
+            flex: 1;
+            perspective: 1000px;
+            min-height: 0;
+        }
+
+        .card {
+            position: absolute;
+            inset: 0;
+            border-radius: 28px;
+            overflow: hidden;
+            background: linear-gradient(180deg, #242424 0%, #171717 100%);
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 24px 50px rgba(0,0,0,0.36);
+            transition: transform 0.28s ease, opacity 0.28s ease;
+        }
+
+        .card.black-card {
+            background: linear-gradient(180deg, #090909 0%, #020202 100%);
+            border-color: rgba(255,255,255,0.04);
+        }
+
+        .card-photo {
+            position: relative;
+            height: 58%;
+            background-color: #2b2b2b;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .card-photo::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0.1) 35%, rgba(0,0,0,0.65) 100%);
+        }
+
+        .photo-finance {
+            background-image:
+                linear-gradient(180deg, rgba(24,29,38,0.08), rgba(12,12,12,0.2)),
+                radial-gradient(circle at 70% 20%, rgba(255,255,255,0.4), transparent 24%),
+                linear-gradient(135deg, #6d7686 0%, #303642 48%, #191d26 100%);
+        }
+
+        .photo-finance::before,
+        .photo-livehouse::before,
+        .photo-photographer::before,
+        .photo-void::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: cover;
+            opacity: 0.94;
+        }
+
+        .photo-finance::before {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 800'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop stop-color='%23939cab'/%3E%3Cstop offset='1' stop-color='%23222731'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='600' height='800' fill='url(%23g)'/%3E%3Crect x='70' y='90' width='460' height='640' rx='24' fill='rgba(255,255,255,0.06)'/%3E%3Cellipse cx='300' cy='235' rx='96' ry='108' fill='%23d0d3db'/%3E%3Cpath d='M170 640c10-136 70-214 130-214s120 78 130 214' fill='%23262a33'/%3E%3Crect x='245' y='392' width='110' height='136' rx='18' fill='%23fbfbfb'/%3E%3Cpath d='M202 468l98-78 98 78v168H202z' fill='%232f333d'/%3E%3C/svg%3E");
+        }
+
+        .photo-livehouse {
+            background-image:
+                linear-gradient(180deg, rgba(33,0,65,0.12), rgba(10,10,10,0.4)),
+                radial-gradient(circle at 30% 24%, rgba(255,97,173,0.46), transparent 22%),
+                radial-gradient(circle at 76% 18%, rgba(110,200,255,0.32), transparent 20%),
+                linear-gradient(135deg, #31143e 0%, #191327 56%, #0e1018 100%);
+        }
+
+        .photo-livehouse::before {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 800'%3E%3Crect width='600' height='800' fill='transparent'/%3E%3Cellipse cx='300' cy='230' rx='108' ry='112' fill='%23d7b2bf'/%3E%3Cpath d='M154 642c0-118 68-220 146-220 94 0 146 102 146 220' fill='%2316161d'/%3E%3Cpath d='M194 226c24-70 76-112 106-112s82 42 106 112' stroke='%2316161d' stroke-width='52' stroke-linecap='round' fill='none'/%3E%3Crect x='218' y='396' width='164' height='204' rx='26' fill='%236b3d57'/%3E%3C/svg%3E");
+        }
+
+        .photo-photographer {
+            background-image:
+                linear-gradient(180deg, rgba(27,31,38,0.12), rgba(11,11,11,0.44)),
+                radial-gradient(circle at 20% 22%, rgba(255,206,123,0.38), transparent 24%),
+                linear-gradient(135deg, #66728a 0%, #263042 52%, #14181f 100%);
+        }
+
+        .photo-photographer::before {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 800'%3E%3Crect width='600' height='800' fill='transparent'/%3E%3Cellipse cx='304' cy='222' rx='92' ry='102' fill='%23d7ccc6'/%3E%3Cpath d='M166 630c22-132 74-208 138-208 76 0 122 76 136 208' fill='%23212b39'/%3E%3Crect x='188' y='430' width='224' height='86' rx='24' fill='%23252f3e'/%3E%3Ccircle cx='300' cy='472' r='34' fill='%233f5168' stroke='%23a9b9ca' stroke-width='12'/%3E%3C/svg%3E");
+        }
+
+        .photo-void {
+            background-image:
+                linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.88)),
+                radial-gradient(circle at 50% 16%, rgba(255,255,255,0.18), transparent 22%),
+                linear-gradient(135deg, #121212 0%, #090909 48%, #010101 100%);
+        }
+
+        .photo-void::before {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 800'%3E%3Crect width='600' height='800' fill='transparent'/%3E%3Cellipse cx='300' cy='232' rx='96' ry='108' fill='%232a2a2a'/%3E%3Cpath d='M148 646c8-134 88-230 152-230s136 96 152 230' fill='%23080808'/%3E%3Cpath d='M204 220c28-68 76-108 96-108s68 40 96 108' stroke='%23080808' stroke-width='48' stroke-linecap='round' fill='none'/%3E%3C/svg%3E");
+            opacity: 0.72;
+        }
+
+        .card-photo-meta {
+            position: absolute;
+            top: 14px;
+            left: 14px;
+            right: 14px;
+            z-index: 2;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+        }
+
+        .verified {
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: rgba(8,8,8,0.44);
+            border: 1px solid rgba(255,255,255,0.12);
+            backdrop-filter: blur(8px);
+        }
+
+        .card-badge {
+            position: absolute;
+            top: 20px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            z-index: 2;
+            opacity: 0;
+            transition: opacity 0.18s ease;
+        }
+
+        .card-badge.like {
+            right: 16px;
+            background: rgba(86,167,255,0.16);
+            color: #8ed0ff;
+            border: 1px solid rgba(86,167,255,0.28);
+        }
+
+        .card-badge.skip {
+            left: 16px;
+            background: rgba(255,95,109,0.16);
+            color: #ff8b97;
+            border: 1px solid rgba(255,95,109,0.28);
+        }
+
+        .card-body {
+            position: relative;
+            z-index: 2;
+            margin-top: -28px;
+            height: calc(42% + 28px);
+            border-radius: 26px 26px 0 0;
+            padding: 20px 18px 22px;
+            background: linear-gradient(180deg, rgba(18,18,18,0.9) 0%, rgba(12,12,12,0.98) 100%);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .card-name-row {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .card-name {
+            font-size: 28px;
+            font-weight: 800;
+            line-height: 1;
+        }
+
+        .card-headline {
+            color: #c7c7c7;
+            font-size: 13px;
+        }
+
+        .card-sign {
+            color: #efefef;
+            font-size: 15px;
+            line-height: 1.55;
+        }
+
+        .card-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .swipe-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 0 8px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .match-overlay,
+        .event-overlay,
+        .profile-page {
+            position: absolute;
+            inset: 0;
+            z-index: 70;
+            display: none;
+            background: rgba(3,3,3,0.94);
+            backdrop-filter: blur(16px);
+        }
+
+        .match-overlay {
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            padding: 26px;
+            text-align: center;
+        }
+
+        .event-overlay {
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: calc(28px + var(--safe-top)) 18px calc(28px + var(--safe-bottom));
+        }
+
+        .overlay-card {
+            width: 100%;
+            background: rgba(18,18,18,0.98);
+            border-radius: 28px;
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 22px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            box-shadow: 0 22px 44px rgba(0,0,0,0.38);
+        }
+
+        .overlay-title {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .overlay-title h2 {
+            font-size: 24px;
+        }
+
+        .overlay-title p {
+            color: var(--muted);
+            line-height: 1.6;
+            font-size: 14px;
+        }
+
+        .map-shell {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(180deg, #07101f 0%, #05070c 100%);
+        }
+
+        .top-bar {
+            position: relative;
+            padding: calc(22px + var(--safe-top)) 18px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            background: rgba(7,11,17,0.92);
+            z-index: 5;
+        }
+
+        .top-bar .route-caption {
+            color: #8fbef6;
+            font-size: 12px;
+            letter-spacing: 0.14em;
+            margin-bottom: 8px;
+        }
+
+        .top-bar h2 {
+            font-size: 28px;
+            margin-bottom: 6px;
+        }
+
+        .top-bar p {
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .map-bg {
+            position: relative;
+            flex: 1;
+            overflow: hidden;
+            background:
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(0deg, rgba(255,255,255,0.03) 1px, transparent 1px),
+                radial-gradient(circle at 30% 20%, rgba(86,167,255,0.16), transparent 22%),
+                linear-gradient(180deg, #0a1120 0%, #05070b 100%);
+            background-size: 42px 42px, 42px 42px, auto, auto;
+        }
+
+        .map-path {
+            position: absolute;
+            left: 50%;
+            top: 14%;
+            width: 8px;
+            height: 56%;
+            border-radius: 999px;
+            transform: translateX(-50%);
+            background: linear-gradient(180deg, rgba(86,167,255,0.16) 0%, rgba(86,167,255,0.72) 100%);
+            box-shadow: 0 0 20px rgba(86,167,255,0.34);
+        }
+
+        .path-fork-left,
+        .path-fork-right {
+            position: absolute;
+            width: 120px;
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(86,167,255,0.28);
+            top: 34%;
+        }
+
+        .path-fork-left {
+            left: calc(50% - 118px);
+            transform: rotate(-28deg);
+            transform-origin: right center;
+        }
+
+        .path-fork-right {
+            left: 50%;
+            transform: rotate(28deg);
+            transform-origin: left center;
+        }
+
+        .player-dot {
+            position: absolute;
+            left: 50%;
+            top: 58%;
+            transform: translate(-50%, -50%);
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 0 0 8px rgba(86,167,255,0.22), 0 0 22px rgba(86,167,255,0.5);
+            z-index: 2;
+        }
+
+        .map-target {
+            position: absolute;
+            top: 16%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 14px;
+            border-radius: 18px;
+            background: rgba(0,0,0,0.56);
+            border: 1px solid rgba(255,255,255,0.08);
+            font-size: 13px;
+            color: #d7eaff;
+        }
+
+        .map-status {
+            position: absolute;
+            left: 16px;
+            right: 16px;
+            bottom: calc(170px + var(--safe-bottom));
+            padding: 14px 16px;
+            border-radius: 18px;
+            background: rgba(4,7,12,0.72);
+            border: 1px solid rgba(255,255,255,0.08);
+            font-size: 14px;
+            line-height: 1.55;
+            color: #eef5ff;
+        }
+
+        .map-status .small {
+            display: block;
+            color: #9aaec8;
+            font-size: 12px;
+            margin-bottom: 4px;
+            letter-spacing: 0.12em;
+        }
+
+        .dead-end-msg {
+            position: absolute;
+            left: 50%;
+            top: 36%;
+            transform: translateX(-50%);
+            width: 82%;
+            padding: 18px 16px;
+            border-radius: 22px;
+            text-align: center;
+            background: rgba(36,0,6,0.86);
+            border: 1px solid rgba(255,95,109,0.28);
+            color: #ffd6da;
+            display: none;
+            z-index: 6;
+            box-shadow: 0 16px 30px rgba(0,0,0,0.34);
+        }
+
+        .nav-controls {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 0 18px calc(24px + var(--safe-bottom));
+            display: flex;
+            justify-content: center;
+            z-index: 5;
+        }
+
+        .nav-pad {
+            position: relative;
+            width: 220px;
+            height: 138px;
+            border-radius: 34px;
+            background: linear-gradient(180deg, rgba(10,16,28,0.96) 0%, rgba(6,8,12,0.96) 100%);
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 20px 38px rgba(0,0,0,0.3);
+        }
+
+        .nav-arrows {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        .nav-arrow-label {
+            position: absolute;
+            color: #90b5e9;
+            font-size: 12px;
+            letter-spacing: 0.16em;
+        }
+
+        .nav-arrow-label.up { top: 16px; left: 50%; transform: translateX(-50%); }
+        .nav-arrow-label.left { left: 20px; bottom: 22px; }
+        .nav-arrow-label.right { right: 18px; bottom: 22px; }
+
+        .nav-knob {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 84px;
+            height: 84px;
+            margin-left: -42px;
+            margin-top: -42px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at 30% 30%, #7bc3ff 0%, #2b6bb8 62%, #173b63 100%);
+            color: #fff;
+            box-shadow: inset 0 2px 8px rgba(255,255,255,0.22), 0 10px 24px rgba(0,0,0,0.28);
+            font-size: 14px;
+            font-weight: 700;
+            transition: transform 0.12s ease;
+        }
+
+        .nav-current-dir {
+            position: absolute;
+            bottom: 96px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 8px 14px;
+            border-radius: 999px;
+            background: rgba(0,0,0,0.45);
+            font-size: 12px;
+            color: #d7eaff;
+            letter-spacing: 0.1em;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .jump-visual {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 18px;
+            padding: 6px 0 10px;
+        }
+
+        .puddle {
+            width: 170px;
+            height: 56px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 50% 40%, rgba(120,170,255,0.4), rgba(25,38,62,0.9));
+            box-shadow: inset 0 6px 16px rgba(255,255,255,0.12), 0 14px 20px rgba(0,0,0,0.3);
+        }
+
+        .jump-charge {
+            width: 100%;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.08);
+            overflow: hidden;
+        }
+
+        .jump-fill {
+            width: 0%;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #67d0ff 0%, #80ffbb 100%);
+            transition: width 0.05s linear;
+        }
+
+        .jump-btn {
+            width: 148px;
+            height: 148px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: radial-gradient(circle at 30% 30%, #6ec3ff 0%, #3678bf 62%, #183052 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            gap: 6px;
+            box-shadow: 0 18px 34px rgba(0,0,0,0.34);
+        }
+
+        .camera-preview {
+            position: relative;
+            width: 100%;
+            height: 220px;
+            border-radius: 22px;
+            overflow: hidden;
+            background: linear-gradient(180deg, #0e1013 0%, #08090b 100%);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        #camera-preview,
+        #camera-fallback {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #camera-fallback {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 26px;
+            text-align: center;
+            color: #d7d7d7;
+            line-height: 1.65;
+            background:
+                radial-gradient(circle at 50% 45%, rgba(255,255,255,0.08), transparent 24%),
+                linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.6));
+        }
+
+        .camera-glitch {
+            position: absolute;
+            inset: auto 14px 14px;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: rgba(0,0,0,0.72);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: #fff0f2;
+            font-size: 12px;
+            line-height: 1.5;
+            display: none;
+        }
+
+        .camera-system-sheet {
+            border-radius: 20px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .camera-status {
+            color: #d8e9ff;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .puzzle-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .puzzle-progress {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .puzzle-stage {
+            position: relative;
+            width: 100%;
+            height: 450px;
+            border-radius: 24px;
+            background: linear-gradient(180deg, #0f0f10 0%, #090909 100%);
+            border: 1px solid rgba(255,255,255,0.08);
+            overflow: hidden;
+        }
+
+        .tomb-outline {
+            position: absolute;
+            left: 50%;
+            top: 20px;
+            width: 226px;
+            height: 270px;
+            transform: translateX(-50%);
+            border-radius: 110px 110px 18px 18px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.02) 40%, rgba(255,255,255,0.05) 100%);
+        }
+
+        .tomb-line {
+            position: absolute;
+            left: 50%;
+            top: 72px;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 1px;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .puzzle-target-slot {
+            position: absolute;
+            border: 1px dashed rgba(231,196,129,0.4);
+            background: rgba(231,196,129,0.06);
+            border-radius: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: rgba(231,196,129,0.72);
+            font-size: 12px;
+            line-height: 1.4;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .puzzle-target-slot.filled {
+            opacity: 0.18;
+            transform: scale(0.98);
+        }
+
+        .puzzle-piece {
+            position: absolute;
+            border-radius: 18px;
+            background:
+                linear-gradient(180deg, #72706d 0%, #494846 70%, #3a3937 100%);
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 14px 24px rgba(0,0,0,0.34);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 10px;
+            color: #f2e4c2;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+        }
+
+        .puzzle-piece.placed {
+            box-shadow: none;
+            border-style: solid;
+            border-color: rgba(231,196,129,0.18);
+            z-index: 1 !important;
+        }
+
+        .full-tomb {
+            position: absolute;
+            left: 50%;
+            top: 30px;
+            width: 226px;
+            height: 270px;
+            transform: translateX(-50%);
+            border-radius: 110px 110px 18px 18px;
+            background: linear-gradient(180deg, rgba(125,123,118,0.86) 0%, rgba(83,81,77,0.94) 70%, rgba(61,60,58,0.96) 100%);
+            border: 1px solid rgba(255,255,255,0.14);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            color: #fbf5e5;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            text-align: center;
+            box-shadow: 0 18px 34px rgba(0,0,0,0.28);
+        }
+
+        .full-tomb.show {
+            opacity: 1;
+        }
+
+        .pieces-tray-label {
+            position: absolute;
+            left: 18px;
+            right: 18px;
+            bottom: 136px;
+            color: var(--muted);
+            font-size: 12px;
+            letter-spacing: 0.12em;
+        }
+
+        .profile-page {
+            padding: calc(24px + var(--safe-top)) 18px calc(32px + var(--safe-bottom));
+            flex-direction: column;
+            gap: 16px;
+            overflow: auto;
+        }
+
+        .profile-page.show {
+            display: flex;
+        }
+
+        .profile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .profile-hero {
+            width: 132px;
+            height: 132px;
+            border-radius: 28px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 16px 30px rgba(0,0,0,0.28);
+        }
+
+        .profile-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .profile-card {
+            padding: 16px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .profile-card .label {
+            font-size: 12px;
+            color: var(--muted);
+            letter-spacing: 0.12em;
+        }
+
+        .profile-dist {
+            color: #ff8b97;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        #screen-end {
+            background: #000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #end-text {
+            color: #fff;
+            letter-spacing: 0.35em;
+            opacity: 0;
+            transition: opacity 2s ease;
+            font-size: 18px;
+        }
+
+        .helper-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
     </style>
 </head>
 <body>
-
 <div id="app">
-    <!-- 短信通知 -->
+    <div class="noise"></div>
+
     <div id="sms" class="sms-toast">
-        <div style="font-size: 12px; color: #888;">系统短信</div>
-        <div style="font-size: 14px; margin-top: 5px;">【替身APP】您的验证码是：<span id="sms-code-display"></span></div>
+        <div style="font-size:12px; color:#6a6a6a;">系统短信</div>
+        <div style="font-size:14px; margin-top:6px;">【替身】你的验证码是 <strong id="sms-code-display"></strong></div>
     </div>
 
-    <!-- 系统通知 (资料更新/距离警告) -->
     <div id="sys-notify" class="sys-notify" onclick="handleNotifyClick()">
-        <div style="font-size: 14px; font-weight: bold;" id="notify-title"></div>
-        <div style="font-size: 12px; color: #ccc; margin-top: 5px;" id="notify-desc"></div>
+        <div style="font-size:14px; font-weight:700;" id="notify-title"></div>
+        <div style="font-size:12px; color:#bfbfbf; margin-top:6px; line-height:1.5;" id="notify-desc"></div>
     </div>
 
-    <!-- 全局内心独白 -->
-    <div id="monologue" class="monologue"></div>
+    <div id="thumb-guide" class="thumb-guide" data-mode="tap">
+        <div class="thumb-bubble" id="thumb-text">拇指点一下，先把自己注册进去。</div>
+        <div class="thumb-ghost"></div>
+        <div class="thumb-icon">👍</div>
+    </div>
 
-    <!-- ================= 阶段一：注册 ================= -->
+    <div id="monologue" class="monologue-bar">
+        <div class="mono-label">INNER VOICE</div>
+        <div id="monologue-text" class="mono-text"></div>
+    </div>
+
     <div id="screen-reg" class="screen active">
-        <div class="title">替身</div>
-        <div style="margin: 0 20px 20px; color: #888; font-size: 14px;">注册你的专属账号</div>
-        <input type="text" id="input-name" class="input-box" placeholder="设置你的昵称">
-        <input type="text" class="input-box" value="138****7291 (已绑定)" disabled style="color: #666;">
-        <div class="btn" onclick="getCode()" id="btn-getcode" style="background: #444; color: #fff;">获取验证码</div>
-        
-        <div id="code-area" style="display: none; width: 100%;">
-            <input type="number" id="input-code" class="input-box" placeholder="输入4位验证码">
-            <div class="btn" onclick="submitReg()">完成注册</div>
+        <div class="hero-panel">
+            <div class="small-row">
+                <span>DATE / MEET / HIDE</span>
+                <span>beta</span>
+            </div>
+            <div>
+                <div class="title">替身</div>
+                <div class="subtitle" style="margin-top:10px; max-width:320px;">像注册一个普通约会 app 一样开始，但从你点进去那刻起，它就开始记住你。</div>
+            </div>
+            <div class="helper-row">
+                <span class="chip">竖屏体验</span>
+                <span class="chip">单手拇指操作</span>
+                <span class="chip">心理微恐</span>
+            </div>
+            <div class="reg-card">
+                <input type="text" id="input-name" class="input-box" placeholder="设置你的昵称">
+                <input type="text" class="input-box" value="138****7291（已绑定）" disabled>
+                <button class="btn btn-secondary" onclick="getCode()" id="btn-getcode">获取验证码</button>
+                <div id="code-area" style="display:none; width:100%; gap:12px; flex-direction:column;">
+                    <input type="number" id="input-code" class="input-box" placeholder="输入 4 位验证码">
+                    <button class="btn btn-primary" onclick="submitReg()">完成注册</button>
+                </div>
+                <div class="small-row">
+                    <span>系统会用你的昵称更新后续资料页</span>
+                    <span>仅本次有效</span>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- ================= 阶段二：刷卡匹配 ================= -->
     <div id="screen-swipe" class="screen">
-        <div class="title" style="margin-top: 20px; font-size: 18px; text-align: center;">发现附近的人</div>
-        <div class="card-container" id="card-area">
-            <!-- 卡片由JS动态注入 -->
+        <div class="app-shell">
+            <div class="swipe-head">
+                <div class="swipe-title">
+                    <h2>发现附近的人</h2>
+                    <p>前几张资料像真的，最后那张才更不对劲。</p>
+                </div>
+                <span class="chip">今晚在线</span>
+            </div>
+            <div class="card-container" id="card-area"></div>
+            <div class="swipe-footer">
+                <span>左划跳过</span>
+                <span>拇指左右拖资料卡</span>
+                <span>右划喜欢</span>
+            </div>
         </div>
-        <div style="display: flex; justify-content: center; margin-bottom: 30px;">
-            <div style="color:#888; font-size:12px;">← 左滑跳过 | 右滑喜欢 →</div>
-        </div>
-        
+
         <div id="match-screen" class="match-overlay">
-            <h1 style="margin-bottom: 20px;">匹配成功</h1>
-            <div class="btn" style="width: 80%; background: #4a90e2; color: #fff;" onclick="startNav()">开启导航寻找 TA</div>
+            <div class="chip" style="background: rgba(86,167,255,0.16); color:#bfe4ff;">匹配成功</div>
+            <h1 style="font-size:34px; letter-spacing:0.04em;">TA 立刻发来了定位</h1>
+            <p style="color:#bdbdbd; line-height:1.7; max-width:280px;">消息只写了一句：<br>“别磨蹭，沿着导航来找我。”</p>
+            <button class="btn btn-primary" style="width:100%;" onclick="startNav()">打开地图 App</button>
         </div>
     </div>
 
-    <!-- ================= 阶段三 & 四：地图导航 ================= -->
     <div id="screen-map" class="screen">
-        <div class="top-bar">
-            <div style="font-size: 14px; color: #ccc;" id="nav-target-text">前往 TA 的位置</div>
-            <div id="dist-display" style="font-size: 24px; font-weight: bold; margin-top: 5px;">3.2 km</div>
-        </div>
-        <div class="map-bg">
-            <div class="map-path" id="map-path"></div>
-            <div class="player-arrow" id="player-arrow"></div>
-            <div style="position: absolute; top: 40%; width: 100%; text-align: center; color: #d0021b; font-size: 18px; display: none;" id="dead-end-msg">您已到达目的地。<br><span style="font-size: 14px; color:#888;">前方无路可走</span></div>
-            
-            <div class="hold-area" id="nav-controls">
-                <div class="hold-btn" id="hold-btn">长按移动</div>
+        <div class="map-shell">
+            <div class="top-bar">
+                <div class="route-caption">LIVE ROUTE</div>
+                <h2 id="dist-display">3.20 km</h2>
+                <p id="nav-target-text">打开底部方向钮，用拇指拖向上 / 左 / 右，照着定位走。</p>
+            </div>
+            <div class="map-bg">
+                <div class="map-path"></div>
+                <div class="path-fork-left"></div>
+                <div class="path-fork-right"></div>
+                <div class="map-target">对方正在移动...</div>
+                <div class="player-dot"></div>
+                <div class="map-status" id="nav-step-card">
+                    <span class="small">当前指令</span>
+                    <span id="nav-step-label">先拖向上，继续靠近定位。</span>
+                </div>
+                <div class="dead-end-msg" id="dead-end-msg">您已到达目的地。<br><span style="font-size:13px; color:#ffb6be;">前方无路可走</span></div>
+                <div class="nav-controls" id="nav-controls">
+                    <div class="nav-pad" id="nav-pad">
+                        <div class="nav-arrows">
+                            <div class="nav-arrow-label up">↑ 继续</div>
+                            <div class="nav-arrow-label left">← 左侧</div>
+                            <div class="nav-arrow-label right">右侧 →</div>
+                        </div>
+                        <div class="nav-current-dir" id="nav-current-dir">拖拽方向钮</div>
+                        <div class="nav-knob" id="nav-knob">拖</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- 交互事件：跳水坑 -->
     <div id="event-jump" class="event-overlay">
-        <h2 style="margin-bottom: 10px;">前方有水坑</h2>
-        <p style="color: #888; margin-bottom: 80px; font-size: 14px;">长按蓄力，松开跳跃</p>
-        <div class="puddle"></div>
-        <div class="jump-btn" id="jump-btn">跳一跳</div>
-    </div>
-
-    <!-- 交互事件：拼图墓碑 -->
-    <div id="event-puzzle" class="event-overlay">
-        <p style="color: #888; margin-bottom: 20px; font-size: 14px;">拖拽碎片，拼合照片</p>
-        <div class="puzzle-area" id="puzzle-area">
-            <div class="puzzle-target" id="puzzle-target">
-                <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">奠</div>
-                <div style="color: #aaa; margin-bottom: 5px;">生于未知 - 死于今日</div>
-                <div style="font-size: 20px;" id="tomb-name"></div>
-                <div style="font-size: 16px; margin-top: 5px;">之墓</div>
+        <div class="overlay-card">
+            <div class="overlay-title">
+                <h2>前面有一滩积水</h2>
+                <p>别点一下就放。用拇指长按蓄力，力道合适再松手，不然鞋会直接踩湿。</p>
             </div>
-            <!-- 碎片 -->
-            <div class="puzzle-piece" id="piece-1" style="top: 10px; left: 10px;">模糊的底座</div>
-            <div class="puzzle-piece" id="piece-2" style="bottom: 20px; right: 10px;">生于...死于...</div>
-            <div class="puzzle-piece" id="piece-3" style="top: 150px; left: -20px;">之墓</div>
-            <div class="puzzle-piece" id="piece-4" style="bottom: 100px; left: 50px;">名字碎片</div>
+            <div class="jump-visual">
+                <div class="puddle"></div>
+                <div class="jump-charge"><div class="jump-fill" id="jump-fill"></div></div>
+                <div class="jump-btn" id="jump-btn">
+                    <strong style="font-size:18px;">拇指长按</strong>
+                    <span style="font-size:12px; opacity:0.86;">松手起跳</span>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- 资料页 -->
+    <div id="event-camera" class="event-overlay">
+        <div class="overlay-card">
+            <div class="overlay-title">
+                <h2>TA 要你打开相机</h2>
+                <p>“让我看看你是不是快到了。”<br>这一步会尝试真实请求相机权限；如果当前打开方式不支持，就会降级成演出提示。</p>
+            </div>
+            <div class="camera-preview">
+                <video id="camera-preview" autoplay playsinline muted style="display:none;"></video>
+                <div id="camera-fallback">相机还没打开。<br>先点下面这个按钮，像真的 app 一样给它权限。</div>
+                <div class="camera-glitch" id="camera-glitch">镜头里一闪而过的，不像只有你一个人。</div>
+            </div>
+            <div class="camera-system-sheet">
+                <div style="font-size:12px; color:#8fa9c9; letter-spacing:0.12em;">系统权限提示</div>
+                <div class="camera-status" id="camera-status">等待你的拇指点下“允许相机”。</div>
+            </div>
+            <div class="helper-row">
+                <button class="btn btn-primary" id="camera-allow-btn" style="flex:1;">允许相机</button>
+                <button class="btn btn-secondary" id="camera-continue-btn" style="flex:1; display:none;">继续赴约</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="event-puzzle" class="event-overlay">
+        <div class="overlay-card">
+            <div class="overlay-title">
+                <h2>墓碑不是“拖一下就算完”</h2>
+                <p>把 4 块残片拖到发光槽位里。放错位置会弹回去，全部吸附后，完整内容才会出现。</p>
+            </div>
+            <div class="puzzle-wrap">
+                <div class="puzzle-progress">
+                    <span id="puzzle-progress-text">已拼好 0 / 4</span>
+                    <span>拖到对应轮廓里</span>
+                </div>
+                <div class="puzzle-stage" id="puzzle-area">
+                    <div class="tomb-outline"></div>
+                    <div class="tomb-line"></div>
+                    <div class="puzzle-target-slot" id="slot-piece-1" style="left: 116px; top: 38px; width: 92px; height: 64px;">碑顶</div>
+                    <div class="puzzle-target-slot" id="slot-piece-2" style="left: 86px; top: 112px; width: 152px; height: 72px;">碑文</div>
+                    <div class="puzzle-target-slot" id="slot-piece-3" style="left: 100px; top: 194px; width: 124px; height: 54px;">名字</div>
+                    <div class="puzzle-target-slot" id="slot-piece-4" style="left: 72px; top: 252px; width: 180px; height: 38px;">底座</div>
+                    <div class="full-tomb" id="puzzle-target">
+                        <div style="font-size:28px; font-weight:800;">奠</div>
+                        <div style="font-size:14px; opacity:0.9;">生于未知 · 死于今夜</div>
+                        <div style="font-size:26px; font-weight:800;" id="tomb-name"></div>
+                        <div style="font-size:16px; letter-spacing:0.28em;">之墓</div>
+                    </div>
+                    <div class="pieces-tray-label">待拖拽残片</div>
+                    <div class="puzzle-piece" id="piece-1" data-slot="piece-1" style="left: 20px; top: 314px; width: 132px; height: 68px; z-index: 12;">碑顶残片</div>
+                    <div class="puzzle-piece" id="piece-2" data-slot="piece-2" style="left: 172px; top: 314px; width: 128px; height: 78px; z-index: 13;">生于… 死于…</div>
+                    <div class="puzzle-piece" id="piece-3" data-slot="piece-3" style="left: 34px; top: 394px; width: 118px; height: 42px; z-index: 14;">名字碎片</div>
+                    <div class="puzzle-piece" id="piece-4" data-slot="piece-4" style="left: 176px; top: 398px; width: 110px; height: 34px; z-index: 15;">之墓</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="screen-profile" class="profile-page">
-        <div style="text-align: right; color: #888; padding: 10px;" onclick="closeProfile()">关闭 ✕</div>
-        <div class="avatar-silhouette"></div>
-        <h2 style="text-align: center; margin-bottom: 30px;">未命名用户</h2>
-        <div style="background: #222; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
-            <div style="color:#888; font-size: 12px; margin-bottom: 5px;">个性签名</div>
-            <div id="profile-sign" style="font-size: 15px;">...</div>
+        <div class="profile-header">
+            <div>
+                <div style="color:#8fa9c9; font-size:12px; letter-spacing:0.16em; margin-bottom:6px;">对方刚刚更新了主页</div>
+                <h2 style="font-size:28px;">TA 比刚才更像你了</h2>
+            </div>
+            <button class="btn btn-secondary" style="padding: 10px 14px;" onclick="closeProfile()">关闭</button>
         </div>
-        <div style="background: #222; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
-            <div style="color:#888; font-size: 12px; margin-bottom: 5px;">兴趣标签</div>
-            <div id="profile-tag" style="display: inline-block; background: #333; padding: 5px 10px; border-radius: 15px; font-size: 13px;">...</div>
+        <div class="profile-hero photo-void"></div>
+        <div class="profile-stack">
+            <div class="profile-card">
+                <div class="label">新的个性签名</div>
+                <div id="profile-sign" style="font-size:15px; line-height:1.7;">...</div>
+            </div>
+            <div class="profile-card">
+                <div class="label">它记录下来的关键词</div>
+                <div id="profile-tag" class="helper-row"></div>
+            </div>
+            <div class="profile-card">
+                <div class="label">刚才那次相机授权</div>
+                <div id="profile-camera" style="font-size:15px; line-height:1.7;">...</div>
+            </div>
+            <div class="profile-card">
+                <div class="label">距离</div>
+                <div id="profile-dist" class="profile-dist">距离 120m</div>
+            </div>
         </div>
-        <div style="text-align: center; margin-top: 20px; color: #d0021b; font-weight: bold;" id="profile-dist"></div>
     </div>
 
-    <!-- ================= 阶段五：终局 ================= -->
-    <div id="screen-end" class="screen" style="background: #000; justify-content: center; align-items: center;">
-        <div id="end-text" style="color: #fff; font-size: 16px; letter-spacing: 4px; opacity: 0; transition: opacity 2s;">已 注 销</div>
+    <div id="screen-end" class="screen">
+        <div id="end-text">已 注 销</div>
     </div>
-
 </div>
 
 <script>
-    /* --- 全局状态 --- */
-    let playerName = "";
-    let genCode = "";
-    let jumpSuccess = false;
-    let distance = 3200; // 3200米
-    let mapStage = 0; // 0:正常移动 1:跳水坑完毕 2:拼图完毕 3:死胡同逃生
-    
-    // 工具：切换屏幕
-    function switchScreen(hideId, showId) {
-        document.getElementById(hideId).classList.remove('active');
-        document.getElementById(showId).classList.add('active');
-    }
-    
-    // 工具：显示内心独白
-    function showMonologue(text, duration = 3000) {
-        const m = document.getElementById('monologue');
-        m.innerText = text;
-        m.style.opacity = 1;
-        setTimeout(() => m.style.opacity = 0, duration);
+    const isTestMode = new URLSearchParams(window.location.search).has('test');
+    const initialDistance = 3200;
+
+    const cardsData = [
+        {
+            name: 'Aaron',
+            age: 27,
+            height: 186,
+            meta: '陆家嘴 · 投行',
+            sign: 'have fun，希望找 situationship，不黏人。周三能喝一杯，周末可以临时出发。',
+            tags: ['酒吧', '拳击', '威士忌'],
+            photoClass: 'photo-finance',
+            online: '12 分钟前在线',
+            type: 'normal'
+        },
+        {
+            name: 'Luca',
+            age: 29,
+            height: 181,
+            meta: '静安 · Livehouse 主理人',
+            sign: '晚场结束很晚，但聊得来可以凌晨去吃面。讨厌尬聊，喜欢有点冒险感的人。',
+            tags: ['livehouse', '夜骑', '不早睡'],
+            photoClass: 'photo-livehouse',
+            online: '刚刚在线',
+            type: 'normal'
+        },
+        {
+            name: 'Milo',
+            age: 26,
+            height: 183,
+            meta: '徐汇 · 摄影师',
+            sign: '拍人像，也拍凌晨四点的街。想认识一个愿意一起乱走的人，别太端着。',
+            tags: ['胶片', '散步', '黑咖啡'],
+            photoClass: 'photo-photographer',
+            online: '18 分钟前在线',
+            type: 'normal'
+        },
+        {
+            name: '已注销用户',
+            age: '',
+            height: '',
+            meta: '距离你 3.2 km',
+            sign: '来找我。别再左滑了。',
+            tags: ['已验证', '刚刚在线'],
+            photoClass: 'photo-void',
+            online: '始终在线',
+            type: 'creepy'
+        }
+    ];
+
+    const navScript = [
+        { label: '先拖向上，继续沿着主路直走。', correct: 'up', distance: 2840, success: '主路很空，只有导航女声在说话。' },
+        { label: '前方岔口，拖向右边那条更窄的路。', correct: 'right', distance: 2480, success: '右边小巷几乎没有人。', event: 'jump' },
+        { label: '围墙挡住了路，拖向左边缺口绕过去。', correct: 'left', distance: 1960, success: '定位突然抖了一下，像把你引去别处。' },
+        { label: 'TA 发来消息：把相机打开，让我看看你到了没。', correct: 'up', distance: 1460, success: '手机震了一下，像是在催你。', event: 'camera' },
+        { label: '继续向上，墓园就在前面。', correct: 'up', distance: 860, success: '前面的碑石一个比一个新。', event: 'puzzle' }
+    ];
+
+    const defaultThumbHints = {
+        tap: '拇指点一下，先把自己注册进去。',
+        swipe: '拇指左右划，像刷约会软件那样看资料。',
+        'drag-direction': '拇指按住方向钮，往上 / 左 / 右拖拽移动。',
+        hold: '拇指按住别松，等力度合适再放。',
+        'drag-piece': '拇指拖动残片，放进发光槽位。',
+        warning: '拇指还在，但你已经快没有选择了。'
+    };
+
+    let state = {};
+    let monologueTimer = null;
+    let notifyAction = null;
+    let jumpMeterTimer = null;
+    let jumpHoldStart = 0;
+    let mapControlBound = false;
+    let jumpBound = false;
+    let cameraBound = false;
+    let puzzleSnapshotMap = {};
+
+    function createDefaultState() {
+        return {
+            playerName: '',
+            genCode: '',
+            currentScreen: 'screen-reg',
+            currentCardIdx: 0,
+            distance: initialDistance,
+            jumpSuccess: false,
+            navStepIndex: 0,
+            activeEvent: null,
+            notifyVisible: false,
+            cameraStatus: 'pending',
+            cameraStream: null,
+            puzzlePlaced: new Set(),
+            puzzleCompleted: false,
+            endingTimer: null
+        };
     }
 
-    // 工具：通知浮层
-    let notifyAction = null;
+    function resetGame(testPlayerName = '') {
+        stopCameraStream();
+        clearTimeout(monologueTimer);
+        clearTimeout(state.endingTimer);
+        clearInterval(jumpMeterTimer);
+        state = createDefaultState();
+        state.playerName = testPlayerName;
+        state.currentScreen = testPlayerName ? 'screen-swipe' : 'screen-reg';
+
+        document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+        document.getElementById(state.currentScreen).classList.add('active');
+        document.getElementById('screen-profile').classList.remove('show');
+        document.getElementById('screen-profile').style.display = 'none';
+        document.getElementById('match-screen').style.display = 'none';
+        document.getElementById('event-jump').style.display = 'none';
+        document.getElementById('event-camera').style.display = 'none';
+        document.getElementById('event-puzzle').style.display = 'none';
+        document.getElementById('dead-end-msg').style.display = 'none';
+        document.getElementById('nav-controls').style.display = 'flex';
+        document.getElementById('dist-display').style.color = '#fff';
+        document.getElementById('end-text').style.opacity = 0;
+        document.getElementById('btn-getcode').style.display = 'block';
+        document.getElementById('code-area').style.display = 'none';
+        document.getElementById('input-name').value = testPlayerName;
+        document.getElementById('input-code').value = '';
+        document.getElementById('jump-fill').style.width = '0%';
+        document.getElementById('camera-status').textContent = '等待你的拇指点下“允许相机”。';
+        document.getElementById('camera-preview').style.display = 'none';
+        document.getElementById('camera-preview').srcObject = null;
+        document.getElementById('camera-fallback').style.display = 'flex';
+        document.getElementById('camera-fallback').innerHTML = '相机还没打开。<br>先点下面这个按钮，像真的 app 一样给它权限。';
+        document.getElementById('camera-glitch').style.display = 'none';
+        document.getElementById('camera-continue-btn').style.display = 'none';
+        document.getElementById('sys-notify').classList.remove('show');
+        document.getElementById('sms').classList.remove('show');
+        document.getElementById('monologue').classList.remove('show');
+        document.getElementById('monologue-text').textContent = '';
+        document.getElementById('tomb-name').textContent = testPlayerName;
+        notifyAction = null;
+        updateDistance();
+        updateNavLabel();
+        renderCards();
+        renderPuzzlePieces();
+        updatePuzzleProgress();
+        setThumbGuide(testPlayerName ? 'swipe' : 'tap');
+    }
+
+    function activateScreen(id) {
+        document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        state.currentScreen = id;
+    }
+
+    function showMonologue(text, duration = 2600) {
+        const box = document.getElementById('monologue');
+        document.getElementById('monologue-text').textContent = text;
+        box.classList.add('show');
+        clearTimeout(monologueTimer);
+        monologueTimer = setTimeout(() => box.classList.remove('show'), duration);
+    }
+
+    function setThumbGuide(mode, text = '') {
+        const guide = document.getElementById('thumb-guide');
+        guide.dataset.mode = mode;
+        document.getElementById('thumb-text').textContent = text || defaultThumbHints[mode] || defaultThumbHints.tap;
+        guide.classList.remove('hidden');
+    }
+
+    function hideThumbGuide() {
+        document.getElementById('thumb-guide').classList.add('hidden');
+    }
+
     function showNotify(title, desc, action) {
-        document.getElementById('notify-title').innerText = title;
-        document.getElementById('notify-desc').innerText = desc;
+        document.getElementById('notify-title').textContent = title;
+        document.getElementById('notify-desc').textContent = desc;
         notifyAction = action;
         document.getElementById('sys-notify').classList.add('show');
     }
+
     function handleNotifyClick() {
         document.getElementById('sys-notify').classList.remove('show');
-        if(notifyAction) notifyAction();
+        if (typeof notifyAction === 'function') {
+            const action = notifyAction;
+            notifyAction = null;
+            action();
+        }
     }
 
-    /* ================= 阶段一：注册 ================= */
     function getCode() {
         const name = document.getElementById('input-name').value.trim();
-        if(!name) return showMonologue("还没填昵称呢");
-        playerName = name;
-        
+        if (!name) {
+            showMonologue('还没写昵称，先把自己编进这个夜晚。');
+            return;
+        }
+        state.playerName = name;
+        state.genCode = String(Math.floor(1000 + Math.random() * 9000));
         document.getElementById('btn-getcode').style.display = 'none';
-        document.getElementById('code-area').style.display = 'block';
-        
-        genCode = Math.floor(1000 + Math.random() * 9000); // 随机4位
-        document.getElementById('sms-code-display').innerText = genCode;
-        
-        const sms = document.getElementById('sms');
-        sms.classList.add('show');
-        setTimeout(() => sms.classList.remove('show'), 3000);
+        document.getElementById('code-area').style.display = 'flex';
+        document.getElementById('sms-code-display').textContent = state.genCode;
+        document.getElementById('sms').classList.add('show');
+        setTimeout(() => document.getElementById('sms').classList.remove('show'), 2600);
+        setThumbGuide('tap', '拇指点一下验证码，再把它输进去。');
     }
 
     function submitReg() {
-        const code = document.getElementById('input-code').value;
-        if(code != genCode) return showMonologue("验证码好像不对");
-        document.getElementById('tomb-name').innerText = playerName; // 预埋墓碑名字
-        switchScreen('screen-reg', 'screen-swipe');
-        initCards();
-    }
-
-    /* ================= 阶段二：刷卡 (原生 Touch 实现 Swipe) ================= */
-    const cardsData = [
-        { name: "旅行者", sign: "喜欢到处走走看看", type: "normal" },
-        { name: "咖啡续命", sign: "周末去哪玩推荐一下", type: "normal" },
-        { name: "已注销用户", sign: "来找我。", type: "creepy" }
-    ];
-    let currentCardIdx = 0;
-
-    function initCards() {
-        const area = document.getElementById('card-area');
-        area.innerHTML = ''; // 清空
-        // 倒序插入，保证第一张在最上层
-        for(let i = cardsData.length - 1; i >= 0; i--) {
-            let data = cardsData[i];
-            let html = `
-                <div class="card ${data.type === 'creepy' ? 'black-card' : ''}" id="card-${i}" style="z-index: ${10 - i};">
-                    <div style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">${data.name}</div>
-                    <div style="font-size: 16px; color: ${data.type==='creepy'?'#888':'#ccc'};">${data.sign}</div>
-                </div>
-            `;
-            area.insertAdjacentHTML('beforeend', html);
+        const code = document.getElementById('input-code').value.trim();
+        if (code !== state.genCode) {
+            showMonologue('验证码不对，它不会放你进去。');
+            return;
         }
-        bindCardTouch(document.getElementById(`card-0`));
+        document.getElementById('tomb-name').textContent = state.playerName;
+        activateScreen('screen-swipe');
+        renderCards();
+        setThumbGuide('swipe');
+        showMonologue('就像真的在刷一个约会软件。', 2200);
     }
 
-    // 利用 touchstart, touchmove, touchend 实现左右滑动判定
-    function bindCardTouch(el) {
-        if(!el) return;
-        let startX = 0, deltaX = 0;
-        
-        el.addEventListener('touchstart', e => {
-            startX = e.touches[0].clientX;
-            el.style.transition = 'none'; // 拖动时取消动画保证跟手
-        });
-        
-        el.addEventListener('touchmove', e => {
-            deltaX = e.touches[0].clientX - startX;
-            el.style.transform = `translateX(${deltaX}px) rotate(${deltaX * 0.05}deg)`;
-        });
-        
-        el.addEventListener('touchend', e => {
-            el.style.transition = 'transform 0.3s ease';
-            if(deltaX > 80) { // 右滑阈值
+    function renderCards() {
+        const area = document.getElementById('card-area');
+        area.innerHTML = '';
+        for (let i = cardsData.length - 1; i >= state.currentCardIdx; i--) {
+            const card = cardsData[i];
+            const metrics = card.type === 'creepy'
+                ? `<span class="chip">${card.meta}</span>`
+                : `<span class="chip">${card.height} cm</span><span class="chip">${card.age} 岁</span><span class="chip">${card.meta}</span>`;
+            area.insertAdjacentHTML('beforeend', `
+                <div class="card ${card.type === 'creepy' ? 'black-card' : ''}" id="card-${i}" style="z-index:${100 - i}; transform: scale(${1 - (i - state.currentCardIdx) * 0.03}) translateY(${(i - state.currentCardIdx) * 10}px); opacity:${i === state.currentCardIdx ? 1 : 0.9};">
+                    <div class="card-photo ${card.photoClass}">
+                        <div class="card-photo-meta">
+                            <span class="verified">${card.online}</span>
+                            <span class="verified">已验证</span>
+                        </div>
+                        <div class="card-badge skip">SKIP</div>
+                        <div class="card-badge like">LIKE</div>
+                    </div>
+                    <div class="card-body">
+                        <div class="card-name-row">
+                            <div>
+                                <div class="card-name">${card.name}${card.age ? `, ${card.age}` : ''}</div>
+                                <div class="card-headline">${card.type === 'creepy' ? '黑色资料卡 · 不允许你离开' : card.meta}</div>
+                            </div>
+                            ${card.type === 'creepy' ? '<span class="chip" style="background: rgba(255,95,109,0.12); color:#ff9fab;">异常</span>' : '<span class="chip">照片已认证</span>'}
+                        </div>
+                        <div class="helper-row">${metrics}</div>
+                        <div class="card-sign">${card.sign}</div>
+                        <div class="card-tags">${card.tags.map(tag => `<span class="chip">${tag}</span>`).join('')}</div>
+                    </div>
+                </div>
+            `);
+        }
+        const current = document.getElementById(`card-${state.currentCardIdx}`);
+        if (current) bindCardTouch(current, state.currentCardIdx);
+    }
+
+    function bindCardTouch(el, index) {
+        if (!el || el.dataset.bound === '1') return;
+        el.dataset.bound = '1';
+        let dragging = false;
+        let startX = 0;
+        let deltaX = 0;
+        const likeBadge = el.querySelector('.card-badge.like');
+        const skipBadge = el.querySelector('.card-badge.skip');
+
+        const onStart = (clientX) => {
+            dragging = true;
+            startX = clientX;
+            deltaX = 0;
+            el.style.transition = 'none';
+        };
+        const onMove = (clientX) => {
+            if (!dragging) return;
+            deltaX = clientX - startX;
+            el.style.transform = `translateX(${deltaX}px) rotate(${deltaX * 0.04}deg)`;
+            likeBadge.style.opacity = deltaX > 36 ? '1' : '0';
+            skipBadge.style.opacity = deltaX < -36 ? '1' : '0';
+        };
+        const onEnd = () => {
+            if (!dragging) return;
+            dragging = false;
+            el.style.transition = 'transform 0.24s ease';
+            likeBadge.style.opacity = '0';
+            skipBadge.style.opacity = '0';
+            if (deltaX > 88) {
                 handleSwipe('right');
-            } else if(deltaX < -80) { // 左滑阈值
+            } else if (deltaX < -88) {
                 handleSwipe('left');
-            } else { // 未达阈值，弹回原位
-                el.style.transform = `translateX(0px) rotate(0deg)`;
+            } else {
+                el.style.transform = 'translateX(0px) rotate(0deg)';
             }
-        });
+        };
+
+        el.addEventListener('touchstart', evt => { evt.preventDefault(); onStart(evt.touches[0].clientX); }, { passive: false });
+        el.addEventListener('touchmove', evt => { evt.preventDefault(); onMove(evt.touches[0].clientX); }, { passive: false });
+        el.addEventListener('touchend', onEnd);
+        el.addEventListener('mousedown', evt => onStart(evt.clientX));
+        window.addEventListener('mousemove', evt => onMove(evt.clientX));
+        window.addEventListener('mouseup', onEnd);
     }
 
     function handleSwipe(dir) {
-        let isCreepy = cardsData[currentCardIdx].type === 'creepy';
-        let el = document.getElementById(`card-${currentCardIdx}`);
-        
-        if(isCreepy && dir === 'left') {
-            // 异常卡片强行拒绝左滑，提示内心独白
-            el.style.transform = `translateX(0px) rotate(0deg)`;
-            showMonologue("这个人还怪特别的，不如匹配一下试试...");
+        const card = cardsData[state.currentCardIdx];
+        const el = document.getElementById(`card-${state.currentCardIdx}`);
+        if (!el) return;
+
+        if (card.type === 'creepy' && dir === 'left') {
+            el.style.transform = 'translateX(0px) rotate(0deg)';
+            showMonologue('它不接受被跳过。像是在逼你把它右滑。', 3200);
+            setThumbGuide('swipe', '这张卡不让你逃。再试也只会弹回来。');
             return;
         }
 
-        // 飞出动画
-        el.style.transform = `translateX(${dir === 'right' ? 500 : -500}px)`;
-        
-        if(isCreepy && dir === 'right') {
-            setTimeout(() => document.getElementById('match-screen').style.display = 'flex', 300);
+        el.style.transform = `translateX(${dir === 'right' ? 520 : -520}px) rotate(${dir === 'right' ? 14 : -14}deg)`;
+
+        if (card.type === 'creepy' && dir === 'right') {
+            showMonologue('匹配成功得太快了。', 2000);
+            setTimeout(() => {
+                document.getElementById('match-screen').style.display = 'flex';
+                setThumbGuide('tap', '拇指点一下，打开地图去见它。');
+            }, 260);
             return;
         }
 
-        // 正常卡片的内心独白
-        let texts = ["无感...", "感觉不是我的菜", "长得还行"];
-        showMonologue(texts[Math.floor(Math.random()*texts.length)]);
-        
-        currentCardIdx++;
-        setTimeout(() => bindCardTouch(document.getElementById(`card-${currentCardIdx}`)), 300);
+        const monologues = dir === 'right'
+            ? ['这人看着至少像真的。', '资料写得挺会撩，但还算像活人。', '嗯，先往下刷一张看看。']
+            : ['没感觉。', '太像模板号了。', '这张先算了。'];
+        showMonologue(monologues[Math.floor(Math.random() * monologues.length)]);
+        state.currentCardIdx += 1;
+        setTimeout(renderCards, 280);
     }
 
-    /* ================= 阶段三：导航与事件 ================= */
-    let walkTimer = null;
     function startNav() {
-        switchScreen('screen-swipe', 'screen-map');
-        initNavControls();
+        document.getElementById('match-screen').style.display = 'none';
+        activateScreen('screen-map');
+        state.navStepIndex = 0;
+        state.distance = initialDistance;
+        updateDistance();
+        updateNavLabel();
+        bindMapControls();
+        setThumbGuide('drag-direction');
+        showMonologue('这次不再是长按前进了，你得自己选方向。', 2600);
     }
 
-    function initNavControls() {
-        const btn = document.getElementById('hold-btn');
-        btn.addEventListener('touchstart', e => { e.preventDefault(); startWalk(); });
-        btn.addEventListener('touchend', stopWalk);
-    }
+    function bindMapControls() {
+        if (mapControlBound) return;
+        mapControlBound = true;
+        const knob = document.getElementById('nav-knob');
+        const centerX = () => knob.parentElement.clientWidth / 2;
+        const centerY = () => knob.parentElement.clientHeight / 2;
+        let dragging = false;
+        const radius = 44;
 
-    function startWalk() {
-        if(mapStage === 3) return; // 死胡同阶段不可移动
-        document.getElementById('hold-btn').style.transform = 'scale(0.9)';
-        
-        walkTimer = setInterval(() => {
-            distance -= 20;
-            updateDist();
-            
-            // 随机内心独白
-            if(Math.random() < 0.05) showMonologue("是这个方向吗？");
-            if(Math.random() < 0.05) showMonologue("我好像走错了，天啊真是大路痴");
-            
-            // 触发事件1：水坑
-            if(distance === 2800 && mapStage === 0) {
-                stopWalk();
-                mapStage = 1;
-                document.getElementById('event-jump').style.display = 'flex';
-                initJumpEvent();
+        function resetKnob() {
+            knob.style.transition = 'transform 0.18s ease';
+            knob.style.transform = 'translate(0px, 0px)';
+            setTimeout(() => knob.style.transition = 'none', 180);
+            document.getElementById('nav-current-dir').textContent = '拖拽方向钮';
+        }
+
+        function getDirection(dx, dy) {
+            if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'right' : 'left';
+            return 'up';
+        }
+
+        function moveToPoint(clientX, clientY) {
+            if (!dragging || state.activeEvent || state.currentScreen !== 'screen-map') return;
+            const rect = knob.parentElement.getBoundingClientRect();
+            let dx = clientX - rect.left - centerX();
+            let dy = clientY - rect.top - centerY();
+            const length = Math.hypot(dx, dy);
+            if (length > radius) {
+                dx = dx / length * radius;
+                dy = dy / length * radius;
             }
-            
-            // 触发事件2：拼图
-            if(distance === 2400 && mapStage === 1) {
-                stopWalk();
-                mapStage = 2;
-                document.getElementById('event-puzzle').style.display = 'flex';
-                initPuzzleEvent();
+            knob.style.transform = `translate(${dx}px, ${dy}px)`;
+            const direction = getDirection(dx, dy);
+            const directionText = direction === 'up' ? '准备向上推进' : direction === 'left' ? '准备拐向左侧' : '准备拐向右侧';
+            document.getElementById('nav-current-dir').textContent = directionText;
+        }
+
+        function release(clientX, clientY) {
+            if (!dragging) return;
+            dragging = false;
+            const rect = knob.parentElement.getBoundingClientRect();
+            const dx = clientX - rect.left - centerX();
+            const dy = clientY - rect.top - centerY();
+            const length = Math.hypot(dx, dy);
+            if (length > 26) {
+                resolveNavigationChoice(getDirection(dx, dy));
             }
-            
-        }, 100);
-    }
+            resetKnob();
+        }
 
-    function stopWalk() {
-        clearInterval(walkTimer);
-        document.getElementById('hold-btn').style.transform = 'scale(1)';
-    }
-
-    function updateDist() {
-        let display = document.getElementById('dist-display');
-        display.innerText = distance >= 1000 ? (distance/1000).toFixed(2) + " km" : distance + " m";
-    }
-
-    /* --- 交互1：跳一跳原生实现 --- */
-    function initJumpEvent() {
-        const btn = document.getElementById('jump-btn');
-        let jumpStartTime = 0;
-        
-        btn.addEventListener('touchstart', e => {
-            e.preventDefault();
-            jumpStartTime = Date.now();
-            btn.classList.add('charging');
+        knob.addEventListener('touchstart', evt => {
+            evt.preventDefault();
+            dragging = true;
+        }, { passive: false });
+        knob.addEventListener('touchmove', evt => {
+            evt.preventDefault();
+            moveToPoint(evt.touches[0].clientX, evt.touches[0].clientY);
+        }, { passive: false });
+        knob.addEventListener('touchend', evt => {
+            const point = evt.changedTouches[0];
+            release(point.clientX, point.clientY);
         });
-        
-        btn.addEventListener('touchend', e => {
-            btn.classList.remove('charging');
-            let duration = Date.now() - jumpStartTime;
-            
-            // 蓄力 0.3s - 1s 视为成功
-            jumpSuccess = (duration > 300 && duration < 1000); 
-            
-            document.getElementById('event-jump').style.display = 'none';
-            showMonologue(jumpSuccess ? "完美跳过水坑！" : "哎呀，踩到水坑里了...");
-        });
+        knob.addEventListener('mousedown', evt => { dragging = true; moveToPoint(evt.clientX, evt.clientY); });
+        window.addEventListener('mousemove', evt => moveToPoint(evt.clientX, evt.clientY));
+        window.addEventListener('mouseup', evt => release(evt.clientX, evt.clientY));
     }
 
-    /* --- 交互2：拼凑碎片原生拖拽实现 --- */
-    function initPuzzleEvent() {
-        let piecesPlaced = 0;
-        for(let i=1; i<=4; i++) {
-            let piece = document.getElementById(`piece-${i}`);
-            let isDragging = false;
-            let startX, startY, initLeft, initTop;
-            
-            piece.addEventListener('touchstart', e => {
-                isDragging = true;
-                startX = e.touches[0].clientX;
-                startY = e.touches[0].clientY;
-                // 获取当前绝对位置
-                let rect = piece.getBoundingClientRect();
-                let areaRect = document.getElementById('puzzle-area').getBoundingClientRect();
-                initLeft = rect.left - areaRect.left;
-                initTop = rect.top - areaRect.top;
-            });
-            
-            piece.addEventListener('touchmove', e => {
-                if(!isDragging) return;
-                e.preventDefault(); // 阻止屏幕滚动
-                let currentX = e.touches[0].clientX;
-                let currentY = e.touches[0].clientY;
-                piece.style.left = (initLeft + currentX - startX) + 'px';
-                piece.style.top = (initTop + currentY - startY) + 'px';
-            });
-            
-            piece.addEventListener('touchend', e => {
-                isDragging = false;
-                // 简单判定：放到目标区域中心即可
-                piece.style.display = 'none'; 
-                piecesPlaced++;
-                if(piecesPlaced === 4) {
-                    finishPuzzle();
-                }
-            });
+    function resolveNavigationChoice(direction) {
+        if (state.activeEvent || state.navStepIndex >= navScript.length) return;
+        const step = navScript[state.navStepIndex];
+        if (direction !== step.correct) {
+            showMonologue(direction === 'up' ? '导航顿了一下：不是这边。' : '你拖错了方向，路线又把你拽回来。');
+            const wrongText = direction === 'left' ? '左边不对，重新判断。' : direction === 'right' ? '右边没有出口。' : '继续直走会撞上墙。';
+            document.getElementById('nav-step-label').textContent = wrongText;
+            return;
+        }
+
+        state.distance = step.distance;
+        state.navStepIndex += 1;
+        updateDistance();
+        showMonologue(step.success, 2400);
+        updateNavLabel();
+
+        if (step.event) {
+            setTimeout(() => openEvent(step.event), 600);
         }
     }
-    
+
+    function updateDistance() {
+        const display = document.getElementById('dist-display');
+        display.textContent = state.distance >= 1000 ? `${(state.distance / 1000).toFixed(2)} km` : `${state.distance} m`;
+    }
+
+    function updateNavLabel() {
+        const label = document.getElementById('nav-step-label');
+        const target = document.getElementById('nav-target-text');
+        if (state.navStepIndex >= navScript.length) {
+            label.textContent = '定位忽然静止了，像在等你靠过去。';
+            target.textContent = '再走几步就到了。你没有别的理由停下。';
+            return;
+        }
+        label.textContent = navScript[state.navStepIndex].label;
+        target.textContent = '打开底部方向钮，用拇指拖向指定方向。';
+    }
+
+    function openEvent(type) {
+        state.activeEvent = type;
+        if (type === 'jump') {
+            document.getElementById('event-jump').style.display = 'flex';
+            bindJumpEvent();
+            setThumbGuide('hold');
+        } else if (type === 'camera') {
+            document.getElementById('event-camera').style.display = 'flex';
+            bindCameraEvent();
+            setThumbGuide('tap', '拇指点“允许相机”，把这一步补上。');
+        } else if (type === 'puzzle') {
+            document.getElementById('event-puzzle').style.display = 'flex';
+            renderPuzzlePieces();
+            bindPuzzlePieces();
+            updatePuzzleProgress();
+            setThumbGuide('drag-piece');
+        }
+    }
+
+    function closeActiveEvent() {
+        document.getElementById('event-jump').style.display = 'none';
+        document.getElementById('event-camera').style.display = 'none';
+        document.getElementById('event-puzzle').style.display = 'none';
+        state.activeEvent = null;
+        setThumbGuide('drag-direction');
+    }
+
+    function bindJumpEvent() {
+        if (jumpBound) return;
+        jumpBound = true;
+        const btn = document.getElementById('jump-btn');
+        const fill = document.getElementById('jump-fill');
+
+        function startHold() {
+            jumpHoldStart = Date.now();
+            clearInterval(jumpMeterTimer);
+            jumpMeterTimer = setInterval(() => {
+                const elapsed = Math.min(Date.now() - jumpHoldStart, 1300);
+                fill.style.width = `${Math.min(100, elapsed / 13)}%`;
+            }, 16);
+        }
+
+        function endHold() {
+            if (!jumpHoldStart) return;
+            const duration = Date.now() - jumpHoldStart;
+            jumpHoldStart = 0;
+            clearInterval(jumpMeterTimer);
+            fill.style.width = '0%';
+            state.jumpSuccess = duration >= 360 && duration <= 1100;
+            document.getElementById('event-jump').style.display = 'none';
+            state.activeEvent = null;
+            setThumbGuide('drag-direction');
+            showMonologue(state.jumpSuccess ? '这次跳得正好，鞋尖没碰到水。' : '你落早了半步，水花全溅到了裤腿上。', 3200);
+        }
+
+        btn.addEventListener('touchstart', evt => { evt.preventDefault(); startHold(); }, { passive: false });
+        btn.addEventListener('touchend', endHold);
+        btn.addEventListener('mousedown', startHold);
+        window.addEventListener('mouseup', endHold);
+    }
+
+    function bindCameraEvent() {
+        if (cameraBound) return;
+        cameraBound = true;
+        document.getElementById('camera-allow-btn').addEventListener('click', requestCameraAccess);
+        document.getElementById('camera-continue-btn').addEventListener('click', closeCameraEvent);
+    }
+
+    async function requestCameraAccess() {
+        if (state.cameraStatus === 'granted' || state.cameraStatus === 'denied' || state.cameraStatus === 'unsupported') {
+            closeCameraEvent();
+            return;
+        }
+        const statusEl = document.getElementById('camera-status');
+        const fallbackEl = document.getElementById('camera-fallback');
+        const previewEl = document.getElementById('camera-preview');
+        const glitchEl = document.getElementById('camera-glitch');
+        const continueBtn = document.getElementById('camera-continue-btn');
+
+        try {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.isSecureContext) {
+                state.cameraStatus = 'unsupported';
+                statusEl.textContent = '当前打开方式不支持真实相机权限（通常需要 https 或 localhost），但剧情节点已经保留。';
+                fallbackEl.style.display = 'flex';
+                fallbackEl.innerHTML = '这次没有真的调起相机，<br>可它还是像看见了你。';
+            } else {
+                statusEl.textContent = '正在请求相机权限…';
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+                state.cameraStream = stream;
+                state.cameraStatus = 'granted';
+                previewEl.srcObject = stream;
+                previewEl.style.display = 'block';
+                fallbackEl.style.display = 'none';
+                statusEl.textContent = '相机已允许。画面里像有个人站在你身后。';
+                glitchEl.style.display = 'block';
+            }
+        } catch (error) {
+            state.cameraStatus = 'denied';
+            statusEl.textContent = '你刚刚拒绝了相机，但它还是知道你已经走到这里。';
+            fallbackEl.style.display = 'flex';
+            fallbackEl.innerHTML = '权限被拒绝。<br>可屏幕像还是偷看到了一帧画面。';
+        }
+        continueBtn.style.display = 'inline-flex';
+        setThumbGuide('tap', '继续点一下，别在这张画面里停太久。');
+        showMonologue('这一步终于补上了：它真的在逼你开相机。', 3200);
+    }
+
+    function closeCameraEvent() {
+        stopCameraStream();
+        document.getElementById('event-camera').style.display = 'none';
+        state.activeEvent = null;
+        setThumbGuide('drag-direction');
+        showMonologue('你把画面关掉了，但那一眼已经够久。', 2600);
+    }
+
+    function stopCameraStream() {
+        if (state.cameraStream) {
+            state.cameraStream.getTracks().forEach(track => track.stop());
+        }
+        state.cameraStream = null;
+        const previewEl = document.getElementById('camera-preview');
+        previewEl.srcObject = null;
+        previewEl.style.display = 'none';
+    }
+
+    function renderPuzzlePieces() {
+        state.puzzlePlaced = new Set();
+        state.puzzleCompleted = false;
+        document.getElementById('puzzle-target').classList.remove('show');
+        document.querySelectorAll('.puzzle-target-slot').forEach(slot => slot.classList.remove('filled'));
+        puzzleSnapshotMap = {};
+        document.querySelectorAll('.puzzle-piece').forEach(piece => {
+            piece.classList.remove('placed');
+            piece.style.display = 'flex';
+            const initialLeft = piece.style.left;
+            const initialTop = piece.style.top;
+            puzzleSnapshotMap[piece.id] = { left: initialLeft, top: initialTop };
+            piece.dataset.originLeft = initialLeft;
+            piece.dataset.originTop = initialTop;
+            piece.dataset.bound = '0';
+        });
+        updatePuzzleProgress();
+    }
+
+    function bindPuzzlePieces() {
+        const area = document.getElementById('puzzle-area');
+        document.querySelectorAll('.puzzle-piece').forEach(piece => {
+            if (piece.dataset.bound === '1') return;
+            piece.dataset.bound = '1';
+            let dragging = false;
+            let startX = 0;
+            let startY = 0;
+            let originLeft = 0;
+            let originTop = 0;
+
+            const begin = (clientX, clientY) => {
+                if (piece.classList.contains('placed')) return;
+                dragging = true;
+                startX = clientX;
+                startY = clientY;
+                originLeft = parseFloat(piece.style.left);
+                originTop = parseFloat(piece.style.top);
+                piece.style.zIndex = 30;
+            };
+            const move = (clientX, clientY) => {
+                if (!dragging) return;
+                const nextLeft = originLeft + (clientX - startX);
+                const nextTop = originTop + (clientY - startY);
+                piece.style.left = `${nextLeft}px`;
+                piece.style.top = `${nextTop}px`;
+            };
+            const end = () => {
+                if (!dragging) return;
+                dragging = false;
+                tryPlacePiece(piece.id, null, area);
+            };
+
+            piece.addEventListener('touchstart', evt => { evt.preventDefault(); begin(evt.touches[0].clientX, evt.touches[0].clientY); }, { passive: false });
+            piece.addEventListener('touchmove', evt => { evt.preventDefault(); move(evt.touches[0].clientX, evt.touches[0].clientY); }, { passive: false });
+            piece.addEventListener('touchend', end);
+            piece.addEventListener('mousedown', evt => begin(evt.clientX, evt.clientY));
+            window.addEventListener('mousemove', evt => move(evt.clientX, evt.clientY));
+            window.addEventListener('mouseup', end);
+        });
+    }
+
+    function tryPlacePiece(pieceId, forceCorrect = null, areaEl = document.getElementById('puzzle-area')) {
+        const piece = document.getElementById(pieceId);
+        const slot = document.getElementById(`slot-${piece.dataset.slot}`);
+        const areaRect = areaEl.getBoundingClientRect();
+        const slotRect = slot.getBoundingClientRect();
+        const pieceRect = piece.getBoundingClientRect();
+        const pieceCenterX = pieceRect.left + pieceRect.width / 2;
+        const pieceCenterY = pieceRect.top + pieceRect.height / 2;
+        const slotCenterX = slotRect.left + slotRect.width / 2;
+        const slotCenterY = slotRect.top + slotRect.height / 2;
+        const distanceToSlot = Math.hypot(pieceCenterX - slotCenterX, pieceCenterY - slotCenterY);
+        const isCorrect = forceCorrect === null ? distanceToSlot < 70 : forceCorrect;
+
+        if (isCorrect) {
+            state.puzzlePlaced.add(pieceId);
+            piece.classList.add('placed');
+            slot.classList.add('filled');
+            piece.style.left = `${slotRect.left - areaRect.left}px`;
+            piece.style.top = `${slotRect.top - areaRect.top}px`;
+            piece.style.width = `${slotRect.width}px`;
+            piece.style.height = `${slotRect.height}px`;
+            piece.style.zIndex = 6;
+            updatePuzzleProgress();
+            if (state.puzzlePlaced.size === 4 && !state.puzzleCompleted) {
+                finishPuzzle();
+            }
+            return true;
+        }
+
+        piece.style.left = piece.dataset.originLeft;
+        piece.style.top = piece.dataset.originTop;
+        piece.style.zIndex = 15;
+        showMonologue('这块不在这里，先看轮廓再放。', 2000);
+        return false;
+    }
+
+    function updatePuzzleProgress() {
+        document.getElementById('puzzle-progress-text').textContent = `已拼好 ${state.puzzlePlaced.size} / 4`;
+    }
+
     function finishPuzzle() {
-        document.getElementById('puzzle-target').style.opacity = 1; // 显现完整墓碑
-        // 手机震动 (需浏览器支持及权限，作为体验补充)
-        if(navigator.vibrate) navigator.vibrate(200); 
-        
+        state.puzzleCompleted = true;
+        document.getElementById('puzzle-target').classList.add('show');
+        if (navigator.vibrate) navigator.vibrate([80, 40, 120]);
+        showMonologue('墓碑上的名字，是你自己。', 3600);
         setTimeout(() => {
             document.getElementById('event-puzzle').style.display = 'none';
-            showMonologue("这是...这是什么鬼！！！我得离开这里！", 4000);
-            
-            // 延迟弹出资料更新通知
-            setTimeout(() => {
-                showNotify("拾遗", "对方的资料更新了，快去看看", openProfile);
-            }, 2500);
-        }, 2000);
+            state.activeEvent = null;
+            setThumbGuide('tap', '通知来了，拇指点开它。');
+            showNotify('拾遗', '对方刚刚更新了主页，像是在等你点进去。', openProfile);
+        }, 1200);
     }
 
-    /* ================= 阶段四：资料更新与死胡同 ================= */
     function openProfile() {
-        document.getElementById('profile-sign').innerText = `${playerName}刚才跳水坑${jumpSuccess ? '成功' : '失败'}了。`;
-        document.getElementById('profile-tag').innerText = playerName;
-        document.getElementById('profile-dist').innerText = `距离 120m`; // 距离骤缩
+        const signText = state.jumpSuccess
+            ? `${state.playerName}刚才干净利落地跳过了水坑。`
+            : `${state.playerName}刚才踩湿了鞋，还继续往前走。`;
+        const cameraText = state.cameraStatus === 'granted'
+            ? '你真的给了相机权限，它也真的看见了你。'
+            : state.cameraStatus === 'denied'
+                ? '你拒绝了相机，但它好像照样拥有了一帧你的画面。'
+                : '这次环境没法真实调起相机，但它还是把这一步写进了记录。';
+        document.getElementById('profile-sign').textContent = `${signText} 现在它把这些细节写进了自己的资料。`;
+        document.getElementById('profile-camera').textContent = cameraText;
+        document.getElementById('profile-dist').textContent = '距离 120 m';
+        document.getElementById('profile-tag').innerHTML = [state.playerName || '未命名', state.jumpSuccess ? '跳过水坑' : '鞋尖湿了', '刚开过相机', '它正在靠近'].map(tag => `<span class="chip">${tag}</span>`).join('');
         document.getElementById('screen-profile').style.display = 'flex';
+        document.getElementById('screen-profile').classList.add('show');
+        setThumbGuide('tap', '看完就关掉它，看看地图还能不能带你离开。');
     }
 
     function closeProfile() {
+        document.getElementById('screen-profile').classList.remove('show');
         document.getElementById('screen-profile').style.display = 'none';
-        
-        // 玩家决定离开，路线反转，进入死胡同
-        mapStage = 3; 
-        document.getElementById('nav-target-text').innerText = "正在重新规划逃生路线...";
-        document.getElementById('map-path').style.transform = "translateX(-50%) rotate(180deg)"; // 路线朝下
-        document.getElementById('player-arrow').style.borderBottomColor = "#888"; // 变灰
-        
-        // 假装还能动一点点
-        distance = 50; 
-        updateDist();
-        
-        setTimeout(() => {
-            document.getElementById('nav-controls').style.display = 'none';
-            document.getElementById('dead-end-msg').style.display = 'block';
-            document.getElementById('dist-display').style.color = "#d0021b";
-            
-            showNotify("拾遗", "警告：距离急速缩短", startCountdown);
-        }, 1500);
+        document.getElementById('nav-controls').style.display = 'none';
+        document.getElementById('dead-end-msg').style.display = 'block';
+        document.getElementById('dist-display').style.color = '#ff6674';
+        document.getElementById('nav-target-text').textContent = '正在重新规划逃生路线…';
+        document.getElementById('nav-step-label').textContent = '路线被改写了。你只能站在原地看距离失控。';
+        state.distance = 120;
+        updateDistance();
+        setThumbGuide('warning');
+        showMonologue('这次不是你去找它，是它已经找到你。', 3400);
+        setTimeout(() => showNotify('拾遗', '警告：距离正在急速缩短', startCountdown), 1200);
     }
 
     function startCountdown() {
-        // 距离失控倒数
-        let dropInterval = 800;
+        let dropInterval = 760;
         function drop() {
-            if(distance <= 0) {
-                distance = 0; updateDist();
-                setTimeout(triggerEnding, 1000);
+            if (state.distance <= 0) {
+                state.distance = 0;
+                updateDistance();
+                state.endingTimer = setTimeout(triggerEnding, 1000);
                 return;
             }
-            distance -= Math.floor(Math.random() * 15) + 5;
-            if(distance < 0) distance = 0;
-            updateDist();
-            
-            dropInterval = Math.max(100, dropInterval * 0.7);
-            setTimeout(drop, dropInterval);
+            state.distance = Math.max(0, state.distance - Math.floor(Math.random() * 18 + 8));
+            updateDistance();
+            dropInterval = Math.max(90, Math.floor(dropInterval * 0.72));
+            state.endingTimer = setTimeout(drop, dropInterval);
         }
         drop();
     }
 
-    /* ================= 阶段五：终局 ================= */
     function triggerEnding() {
-        switchScreen('screen-map', 'screen-end');
+        activateScreen('screen-end');
+        hideThumbGuide();
+        document.getElementById('monologue').classList.remove('show');
         setTimeout(() => {
             document.getElementById('end-text').style.opacity = 1;
-        }, 1000);
+        }, 800);
     }
 
+    function bindTestApi() {
+        window.__gameTestAPI = {
+            resetForTest(name = '测试用户') {
+                resetGame(name);
+            },
+            showMonologueForTest(text) {
+                showMonologue(text, 6000);
+            },
+            getThumbState() {
+                const guide = document.getElementById('thumb-guide');
+                return {
+                    mode: guide.dataset.mode,
+                    text: document.getElementById('thumb-text').textContent
+                };
+            },
+            startMapForTest() {
+                startNav();
+            },
+            openCameraEventForTest() {
+                activateScreen('screen-map');
+                openEvent('camera');
+            },
+            openPuzzleForTest() {
+                activateScreen('screen-map');
+                openEvent('puzzle');
+            },
+            getPuzzleState() {
+                return {
+                    placed: state.puzzlePlaced.size,
+                    completed: state.puzzleCompleted
+                };
+            },
+            placePuzzlePieceForTest(id, correct) {
+                tryPlacePiece(id, Boolean(correct));
+            }
+        };
+    }
+
+    function bootstrap() {
+        resetGame('');
+        if (isTestMode) bindTestApi();
+    }
+
+    bootstrap();
 </script>
 </body>
 </html>
