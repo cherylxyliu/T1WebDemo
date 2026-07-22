@@ -3,33 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>替身 验收测试</title>
+    <title>替身 v1.2 验收测试</title>
     <style>
-        body {
-            margin: 0;
-            padding: 24px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #101010;
-            color: #f4f4f4;
-        }
-        h1 { margin: 0 0 12px; font-size: 24px; }
-        p { margin: 0 0 20px; color: #a0a0a0; }
-        .pass { color: #74ff9e; }
-        .fail { color: #ff6b6b; }
-        ul { padding-left: 20px; line-height: 1.7; }
-        code { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 6px; }
-        iframe { width: 390px; height: 844px; border: 1px solid #333; border-radius: 20px; margin-top: 20px; background: #000; }
+        body { margin:0; padding:24px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#101010; color:#f4f4f4; }
+        h1 { margin:0 0 12px; font-size:24px; }
+        p { margin:0 0 20px; color:#a0a0a0; }
+        .pass { color:#74ff9e; }
+        .fail { color:#ff6b6b; }
+        ul { padding-left:20px; line-height:1.7; }
+        code { background:rgba(255,255,255,.08); padding:2px 6px; border-radius:6px; }
+        iframe { width:390px; height:844px; border:1px solid #333; border-radius:20px; margin-top:20px; background:#000; }
     </style>
 </head>
 <body>
     <h1 id="summary">运行中...</h1>
-    <p>这页会加载 <code>index.html?test=1</code>，检查前半段重构的关键交互是否具备。</p>
+    <p>这页会加载 <code>index.html?test=1</code>，检查 v1.2 的强制匹配、写实拇指、黑白地图、擦拭路牌、伪相机结局是否具备。</p>
     <ul id="results"></ul>
     <iframe id="game-frame" src="./index.html?test=1" title="替身测试沙盒"></iframe>
 
     <script>
         const resultsEl = document.getElementById('results');
         const summaryEl = document.getElementById('summary');
+        const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
         function addResult(ok, message) {
             const li = document.createElement('li');
@@ -49,7 +44,7 @@
         async function run() {
             const frame = document.getElementById('game-frame');
             await new Promise(resolve => frame.addEventListener('load', resolve, { once: true }));
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await wait(300);
 
             const win = frame.contentWindow;
             const doc = frame.contentDocument;
@@ -68,35 +63,56 @@
 
             total++;
             api.showMonologueForTest('电影字幕式独白');
-            const monologue = doc.getElementById('monologue-text');
-            if (addResult(monologue && monologue.textContent.includes('电影字幕式独白'), '底部独白条可单独显示文本')) passed++;
+            const monologueBox = doc.getElementById('monologue');
+            const monologueText = api.getMonologueText();
+            if (addResult(monologueBox && monologueText.includes('电影字幕式独白'), '底部独白条可显示文本且独立存在')) passed++;
 
             total++;
             const thumb = api.getThumbState();
-            if (addResult(Boolean(thumb && thumb.mode && thumb.text), '全局大拇指引导存在且可读取状态')) passed++;
+            if (addResult(Boolean(thumb && thumb.hasRealThumb && !thumb.hasBubble && thumb.text === ''), '写实大拇指存在，且没有旧版气泡/文字引导')) passed++;
+
+            total++;
+            api.swipeCreepyLeftForTest();
+            await wait(80);
+            if (addResult(api.getMonologueText().includes('这个人还怪特别的，不如匹配一下试试'), '异常卡左滑弹回并显示指定独白')) passed++;
+
+            total++;
+            api.swipeCreepyRightForTest();
+            await wait(2200);
+            if (addResult(doc.getElementById('screen-chat').classList.contains('active') && Boolean(doc.getElementById('address-link')), '异常卡右滑后进入聊天页并出现地址链接')) passed++;
 
             total++;
             api.startMapForTest();
-            const navKnob = doc.getElementById('nav-knob');
-            if (addResult(Boolean(navKnob), '地图阶段存在底部方向拖拽控件')) passed++;
+            const beforeDistance = api.getDistance();
+            api.advanceMapForTest();
+            await wait(80);
+            if (addResult(api.getDistance() < beforeDistance, '地图推进后距离真实缩短')) passed++;
 
             total++;
-            api.openCameraEventForTest();
-            const cameraEvent = doc.getElementById('event-camera');
-            if (addResult(cameraEvent && cameraEvent.style.display === 'flex', '存在相机权限剧情阶段')) passed++;
+            const mapShell = doc.querySelector('.map-shell');
+            if (addResult(Boolean(mapShell && doc.getElementById('finder-distance') && doc.getElementById('nav-knob')), '地图为黑白颗粒风格并保留底部拖拽控件')) passed++;
 
             total++;
-            api.openPuzzleForTest();
-            const beforePuzzle = api.getPuzzleState();
-            api.placePuzzlePieceForTest('piece-1', false);
-            const afterWrongDrop = api.getPuzzleState();
-            const wrongDropProtected = beforePuzzle.placed === afterWrongDrop.placed;
-            if (addResult(wrongDropProtected, '拼图错误放置不会直接算完成')) passed++;
+            api.openSignEventForTest();
+            api.scrubSignForTest(100);
+            await wait(80);
+            const sign = api.getSignState();
+            if (addResult(sign.progress === 100 && sign.text.includes('不要回头'), '擦拭路牌可显现“不要回头”')) passed++;
 
             total++;
-            ['piece-1', 'piece-2', 'piece-3', 'piece-4'].forEach(id => api.placePuzzlePieceForTest(id, true));
-            const afterCorrectDrop = api.getPuzzleState();
-            if (addResult(afterCorrectDrop.placed === 4 && afterCorrectDrop.completed, '拼图全部吸附后才会完成')) passed++;
+            if (addResult(api.hasPuzzleStage() === false, '墓碑拼图阶段已删除')) passed++;
+
+            total++;
+            if (addResult(api.usesRealCamera() === false && !('getUserMedia' in api), '结局不调用真实相机权限')) passed++;
+
+            total++;
+            api.triggerEndingForTest();
+            await wait(1450);
+            const permissionShown = doc.getElementById('permission-dialog').classList.contains('show');
+            api.startFakeCameraForTest();
+            await wait(2700);
+            const finalShown = doc.getElementById('final-copy').classList.contains('show');
+            if (addResult(permissionShown && finalShown, '伪系统权限弹窗后进入伪前置摄像头并显示注销结局')) passed++;
 
             finish(total, passed);
         }
