@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <!-- iOS Web App 适配 -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="替身">
+    <meta name="format-detection" content="telephone=no">
+    <!-- PWA 图标（可选，添加到主屏后显示） -->
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23000'/><text x='50' y='65' font-size='50' text-anchor='middle' fill='%23fff'>替</text></svg>">
+    <title>替身 (Doppelgänger)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, sans-serif; touch-action: none; }
+        body { background-color: #000; color: #fff; overflow: hidden; display: flex; justify-content: center; user-select: none;
+               /* iOS 安全区域适配：iPhone X+ 刘海屏 / 底部横条 */
+               padding-top: env(safe-area-inset-top);
+               padding-bottom: env(safe-area-inset-bottom);
+               padding-left: env(safe-area-inset-left);
+               padding-right: env(safe-area-inset-right);
+        }
+        #app { width: 100vw; max-width: 450px; height: 100vh; background-color: #121212; position: relative; overflow: hidden; }
+        
+        .screen { display: none; width: 100%; height: 100%; flex-direction: column; position: absolute; top: 0; left: 0; }
+        .active { display: flex; }
+        
+        /* 通用UI */
+        .btn { background: #fff; color: #000; padding: 15px; border-radius: 25px; text-align: center; font-weight: bold; margin: 10px 20px; cursor: pointer; transition: 0.2s; }
+        .btn:active { background: #ccc; }
+        .input-box { background: #222; border: 1px solid #333; color: #fff; padding: 15px; border-radius: 10px; margin: 10px 20px; outline: none; font-size: 16px; width: calc(100% - 40px); }
+        .title { font-size: 24px; font-weight: bold; margin: 40px 20px 10px; }
+        .monologue { position: absolute; bottom: 150px; width: 100%; text-align: center; color: #ccc; font-style: italic; font-size: 15px; opacity: 0; transition: opacity 0.5s; pointer-events: none; z-index: 100; text-shadow: 1px 1px 2px #000; }
+        
+        /* 阶段一：注册 */
+        .sms-toast { position: absolute; top: -100px; left: 10px; right: 10px; background: #fff; color: #000; padding: 15px; border-radius: 15px; transition: top 0.3s ease; box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 100; }
+        .sms-toast.show { top: 20px; }
+        
+        /* 阶段二：刷卡 */
+        .card-container { flex: 1; position: relative; margin: 20px; perspective: 1000px; display: flex; justify-content: center; align-items: center; }
+        .card { position: absolute; width: 100%; height: 80%; background: #2a2a2a; border-radius: 20px; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); transition: transform 0.3s ease; }
+        .card.black-card { background: #050505; color: #555; border: 1px solid #222; }
+        .match-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 50; display: none; flex-direction: column; justify-content: center; align-items: center; }
+        
+        /* 阶段三：导航移动 */
+        .map-bg { flex: 1; background: #0a0e17; position: relative; }
+        .top-bar { background: rgba(10,14,23,0.9); padding: 20px; text-align: center; border-bottom: 1px solid #1a2436; z-index: 10; relative; }
+        .map-path { position: absolute; bottom: 20%; left: 50%; width: 4px; height: 60%; background: #4a90e2; transform: translateX(-50%); }
+        .player-arrow { position: absolute; bottom: 20%; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-bottom: 20px solid #4a90e2; z-index: 5; }
+        .hold-area { position: absolute; bottom: 0; width: 100%; height: 50%; display: flex; justify-content: center; align-items: flex-end; padding-bottom: 40px; }
+        .hold-btn { width: 100px; height: 100px; border: 2px solid #4a90e2; border-radius: 50%; display: flex; justify-content: center; align-items: center; color: #4a90e2; font-size: 14px; background: rgba(74, 144, 226, 0.1); transition: transform 0.1s; }
+        
+        /* 交互事件容器 */
+        .event-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 60; display: none; flex-direction: column; justify-content: center; align-items: center; }
+        
+        /* 跳一跳水坑 */
+        .puddle { width: 120px; height: 40px; background: #333; border-radius: 50%; margin-bottom: 50px; border: 2px solid #444; }
+        .jump-btn { width: 120px; height: 120px; background: #4a90e2; color: #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 18px; font-weight: bold; }
+        .jump-btn.charging { transform: scale(0.8); background: #357abd; }
+        
+        /* 拼凑墓碑 */
+        .puzzle-area { width: 300px; height: 400px; border: 1px dashed #444; position: relative; margin-bottom: 30px; background: #111; }
+        .puzzle-piece { position: absolute; width: 120px; height: 100px; background: #555; color: #aaa; display: flex; justify-content: center; align-items: center; font-size: 14px; text-align: center; border: 1px solid #222; box-shadow: 2px 2px 10px rgba(0,0,0,0.8); z-index: 10; }
+        .puzzle-target { width: 200px; height: 300px; position: absolute; top: 50px; left: 50px; border: 1px solid #333; display: flex; flex-direction: column; opacity: 0; transition: opacity 1s; background: #222; justify-content: center; align-items: center; text-align: center;}
+        
+        /* 资料页更新 */
+        .profile-page { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #121212; z-index: 80; display: none; flex-direction: column; padding: 20px; }
+        .avatar-silhouette { width: 100px; height: 100px; background: #333; border-radius: 50%; margin: 40px auto 20px; border: 2px dashed #666; }
+        
+        /* 通知系统 */
+        .sys-notify { position: absolute; top: -100px; left: 10px; right: 10px; background: #333; color: #fff; padding: 15px; border-radius: 10px; transition: top 0.3s; z-index: 90; text-align: center; border: 1px solid #555; cursor: pointer;}
+        .sys-notify.show { top: 20px; }
+        
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <!-- 短信通知 -->
+    <div id="sms" class="sms-toast">
+        <div style="font-size: 12px; color: #888;">系统短信</div>
+        <div style="font-size: 14px; margin-top: 5px;">【替身APP】您的验证码是：<span id="sms-code-display"></span></div>
+    </div>
+
+    <!-- 系统通知 (资料更新/距离警告) -->
+    <div id="sys-notify" class="sys-notify" onclick="handleNotifyClick()">
+        <div style="font-size: 14px; font-weight: bold;" id="notify-title"></div>
+        <div style="font-size: 12px; color: #ccc; margin-top: 5px;" id="notify-desc"></div>
+    </div>
+
+    <!-- 全局内心独白 -->
+    <div id="monologue" class="monologue"></div>
+
+    <!-- ================= 阶段一：注册 ================= -->
+    <div id="screen-reg" class="screen active">
+        <div class="title">替身</div>
+        <div style="margin: 0 20px 20px; color: #888; font-size: 14px;">注册你的专属账号</div>
+        <input type="text" id="input-name" class="input-box" placeholder="设置你的昵称">
+        <input type="text" class="input-box" value="138****7291 (已绑定)" disabled style="color: #666;">
+        <div class="btn" onclick="getCode()" id="btn-getcode" style="background: #444; color: #fff;">获取验证码</div>
+        
+        <div id="code-area" style="display: none; width: 100%;">
+            <input type="number" id="input-code" class="input-box" placeholder="输入4位验证码">
+            <div class="btn" onclick="submitReg()">完成注册</div>
+        </div>
+    </div>
+
+    <!-- ================= 阶段二：刷卡匹配 ================= -->
+    <div id="screen-swipe" class="screen">
+        <div class="title" style="margin-top: 20px; font-size: 18px; text-align: center;">发现附近的人</div>
+        <div class="card-container" id="card-area">
+            <!-- 卡片由JS动态注入 -->
+        </div>
+        <div style="display: flex; justify-content: center; margin-bottom: 30px;">
+            <div style="color:#888; font-size:12px;">← 左滑跳过 | 右滑喜欢 →</div>
+        </div>
+        
+        <div id="match-screen" class="match-overlay">
+            <h1 style="margin-bottom: 20px;">匹配成功</h1>
+            <div class="btn" style="width: 80%; background: #4a90e2; color: #fff;" onclick="startNav()">开启导航寻找 TA</div>
+        </div>
+    </div>
+
+    <!-- ================= 阶段三 & 四：地图导航 ================= -->
+    <div id="screen-map" class="screen">
+        <div class="top-bar">
+            <div style="font-size: 14px; color: #ccc;" id="nav-target-text">前往 TA 的位置</div>
+            <div id="dist-display" style="font-size: 24px; font-weight: bold; margin-top: 5px;">3.2 km</div>
+        </div>
+        <div class="map-bg">
+            <div class="map-path" id="map-path"></div>
+            <div class="player-arrow" id="player-arrow"></div>
+            <div style="position: absolute; top: 40%; width: 100%; text-align: center; color: #d0021b; font-size: 18px; display: none;" id="dead-end-msg">您已到达目的地。<br><span style="font-size: 14px; color:#888;">前方无路可走</span></div>
+            
+            <div class="hold-area" id="nav-controls">
+                <div class="hold-btn" id="hold-btn">长按移动</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 交互事件：跳水坑 -->
+    <div id="event-jump" class="event-overlay">
+        <h2 style="margin-bottom: 10px;">前方有水坑</h2>
+        <p style="color: #888; margin-bottom: 80px; font-size: 14px;">长按蓄力，松开跳跃</p>
+        <div class="puddle"></div>
+        <div class="jump-btn" id="jump-btn">跳一跳</div>
+    </div>
+
+    <!-- 交互事件：拼图墓碑 -->
+    <div id="event-puzzle" class="event-overlay">
+        <p style="color: #888; margin-bottom: 20px; font-size: 14px;">拖拽碎片，拼合照片</p>
+        <div class="puzzle-area" id="puzzle-area">
+            <div class="puzzle-target" id="puzzle-target">
+                <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">奠</div>
+                <div style="color: #aaa; margin-bottom: 5px;">生于未知 - 死于今日</div>
+                <div style="font-size: 20px;" id="tomb-name"></div>
+                <div style="font-size: 16px; margin-top: 5px;">之墓</div>
+            </div>
+            <!-- 碎片 -->
+            <div class="puzzle-piece" id="piece-1" style="top: 10px; left: 10px;">模糊的底座</div>
+            <div class="puzzle-piece" id="piece-2" style="bottom: 20px; right: 10px;">生于...死于...</div>
+            <div class="puzzle-piece" id="piece-3" style="top: 150px; left: -20px;">之墓</div>
+            <div class="puzzle-piece" id="piece-4" style="bottom: 100px; left: 50px;">名字碎片</div>
+        </div>
+    </div>
+
+    <!-- 资料页 -->
+    <div id="screen-profile" class="profile-page">
+        <div style="text-align: right; color: #888; padding: 10px;" onclick="closeProfile()">关闭 ✕</div>
+        <div class="avatar-silhouette"></div>
+        <h2 style="text-align: center; margin-bottom: 30px;">未命名用户</h2>
+        <div style="background: #222; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+            <div style="color:#888; font-size: 12px; margin-bottom: 5px;">个性签名</div>
+            <div id="profile-sign" style="font-size: 15px;">...</div>
+        </div>
+        <div style="background: #222; padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+            <div style="color:#888; font-size: 12px; margin-bottom: 5px;">兴趣标签</div>
+            <div id="profile-tag" style="display: inline-block; background: #333; padding: 5px 10px; border-radius: 15px; font-size: 13px;">...</div>
+        </div>
+        <div style="text-align: center; margin-top: 20px; color: #d0021b; font-weight: bold;" id="profile-dist"></div>
+    </div>
+
+    <!-- ================= 阶段五：终局 ================= -->
+    <div id="screen-end" class="screen" style="background: #000; justify-content: center; align-items: center;">
+        <div id="end-text" style="color: #fff; font-size: 16px; letter-spacing: 4px; opacity: 0; transition: opacity 2s;">已 注 销</div>
+    </div>
+
+</div>
+
+<script>
+    /* --- 全局状态 --- */
+    let playerName = "";
+    let genCode = "";
+    let jumpSuccess = false;
+    let distance = 3200; // 3200米
+    let mapStage = 0; // 0:正常移动 1:跳水坑完毕 2:拼图完毕 3:死胡同逃生
+    
+    // 工具：切换屏幕
+    function switchScreen(hideId, showId) {
+        document.getElementById(hideId).classList.remove('active');
+        document.getElementById(showId).classList.add('active');
+    }
+    
+    // 工具：显示内心独白
+    function showMonologue(text, duration = 3000) {
+        const m = document.getElementById('monologue');
+        m.innerText = text;
+        m.style.opacity = 1;
+        setTimeout(() => m.style.opacity = 0, duration);
+    }
+
+    // 工具：通知浮层
+    let notifyAction = null;
+    function showNotify(title, desc, action) {
+        document.getElementById('notify-title').innerText = title;
+        document.getElementById('notify-desc').innerText = desc;
+        notifyAction = action;
+        document.getElementById('sys-notify').classList.add('show');
+    }
+    function handleNotifyClick() {
+        document.getElementById('sys-notify').classList.remove('show');
+        if(notifyAction) notifyAction();
+    }
+
+    /* ================= 阶段一：注册 ================= */
+    function getCode() {
+        const name = document.getElementById('input-name').value.trim();
+        if(!name) return showMonologue("还没填昵称呢");
+        playerName = name;
+        
+        document.getElementById('btn-getcode').style.display = 'none';
+        document.getElementById('code-area').style.display = 'block';
+        
+        genCode = Math.floor(1000 + Math.random() * 9000); // 随机4位
+        document.getElementById('sms-code-display').innerText = genCode;
+        
+        const sms = document.getElementById('sms');
+        sms.classList.add('show');
+        setTimeout(() => sms.classList.remove('show'), 3000);
+    }
+
+    function submitReg() {
+        const code = document.getElementById('input-code').value;
+        if(code != genCode) return showMonologue("验证码好像不对");
+        document.getElementById('tomb-name').innerText = playerName; // 预埋墓碑名字
+        switchScreen('screen-reg', 'screen-swipe');
+        initCards();
+    }
+
+    /* ================= 阶段二：刷卡 (原生 Touch 实现 Swipe) ================= */
+    const cardsData = [
+        { name: "旅行者", sign: "喜欢到处走走看看", type: "normal" },
+        { name: "咖啡续命", sign: "周末去哪玩推荐一下", type: "normal" },
+        { name: "已注销用户", sign: "来找我。", type: "creepy" }
+    ];
+    let currentCardIdx = 0;
+
+    function initCards() {
+        const area = document.getElementById('card-area');
+        area.innerHTML = ''; // 清空
+        // 倒序插入，保证第一张在最上层
+        for(let i = cardsData.length - 1; i >= 0; i--) {
+            let data = cardsData[i];
+            let html = `
+                <div class="card ${data.type === 'creepy' ? 'black-card' : ''}" id="card-${i}" style="z-index: ${10 - i};">
+                    <div style="font-size: 24px; font-weight: bold; margin-bottom: 5px;">${data.name}</div>
+                    <div style="font-size: 16px; color: ${data.type==='creepy'?'#888':'#ccc'};">${data.sign}</div>
+                </div>
+            `;
+            area.insertAdjacentHTML('beforeend', html);
+        }
+        bindCardTouch(document.getElementById(`card-0`));
+    }
+
+    // 利用 touchstart, touchmove, touchend 实现左右滑动判定
+    function bindCardTouch(el) {
+        if(!el) return;
+        let startX = 0, deltaX = 0;
+        
+        el.addEventListener('touchstart', e => {
+            startX = e.touches[0].clientX;
+            el.style.transition = 'none'; // 拖动时取消动画保证跟手
+        });
+        
+        el.addEventListener('touchmove', e => {
+            deltaX = e.touches[0].clientX - startX;
+            el.style.transform = `translateX(${deltaX}px) rotate(${deltaX * 0.05}deg)`;
+        });
+        
+        el.addEventListener('touchend', e => {
+            el.style.transition = 'transform 0.3s ease';
+            if(deltaX > 80) { // 右滑阈值
+                handleSwipe('right');
+            } else if(deltaX < -80) { // 左滑阈值
+                handleSwipe('left');
+            } else { // 未达阈值，弹回原位
+                el.style.transform = `translateX(0px) rotate(0deg)`;
+            }
+        });
+    }
+
+    function handleSwipe(dir) {
+        let isCreepy = cardsData[currentCardIdx].type === 'creepy';
+        let el = document.getElementById(`card-${currentCardIdx}`);
+        
+        if(isCreepy && dir === 'left') {
+            // 异常卡片强行拒绝左滑，提示内心独白
+            el.style.transform = `translateX(0px) rotate(0deg)`;
+            showMonologue("这个人还怪特别的，不如匹配一下试试...");
+            return;
+        }
+
+        // 飞出动画
+        el.style.transform = `translateX(${dir === 'right' ? 500 : -500}px)`;
+        
+        if(isCreepy && dir === 'right') {
+            setTimeout(() => document.getElementById('match-screen').style.display = 'flex', 300);
+            return;
+        }
+
+        // 正常卡片的内心独白
+        let texts = ["无感...", "感觉不是我的菜", "长得还行"];
+        showMonologue(texts[Math.floor(Math.random()*texts.length)]);
+        
+        currentCardIdx++;
+        setTimeout(() => bindCardTouch(document.getElementById(`card-${currentCardIdx}`)), 300);
+    }
+
+    /* ================= 阶段三：导航与事件 ================= */
+    let walkTimer = null;
+    function startNav() {
+        switchScreen('screen-swipe', 'screen-map');
+        initNavControls();
+    }
+
+    function initNavControls() {
+        const btn = document.getElementById('hold-btn');
+        btn.addEventListener('touchstart', e => { e.preventDefault(); startWalk(); });
+        btn.addEventListener('touchend', stopWalk);
+    }
+
+    function startWalk() {
+        if(mapStage === 3) return; // 死胡同阶段不可移动
+        document.getElementById('hold-btn').style.transform = 'scale(0.9)';
+        
+        walkTimer = setInterval(() => {
+            distance -= 20;
+            updateDist();
+            
+            // 随机内心独白
+            if(Math.random() < 0.05) showMonologue("是这个方向吗？");
+            if(Math.random() < 0.05) showMonologue("我好像走错了，天啊真是大路痴");
+            
+            // 触发事件1：水坑
+            if(distance === 2800 && mapStage === 0) {
+                stopWalk();
+                mapStage = 1;
+                document.getElementById('event-jump').style.display = 'flex';
+                initJumpEvent();
+            }
+            
+            // 触发事件2：拼图
+            if(distance === 2400 && mapStage === 1) {
+                stopWalk();
+                mapStage = 2;
+                document.getElementById('event-puzzle').style.display = 'flex';
+                initPuzzleEvent();
+            }
+            
+        }, 100);
+    }
+
+    function stopWalk() {
+        clearInterval(walkTimer);
+        document.getElementById('hold-btn').style.transform = 'scale(1)';
+    }
+
+    function updateDist() {
+        let display = document.getElementById('dist-display');
+        display.innerText = distance >= 1000 ? (distance/1000).toFixed(2) + " km" : distance + " m";
+    }
+
+    /* --- 交互1：跳一跳原生实现 --- */
+    function initJumpEvent() {
+        const btn = document.getElementById('jump-btn');
+        let jumpStartTime = 0;
+        
+        btn.addEventListener('touchstart', e => {
+            e.preventDefault();
+            jumpStartTime = Date.now();
+            btn.classList.add('charging');
+        });
+        
+        btn.addEventListener('touchend', e => {
+            btn.classList.remove('charging');
+            let duration = Date.now() - jumpStartTime;
+            
+            // 蓄力 0.3s - 1s 视为成功
+            jumpSuccess = (duration > 300 && duration < 1000); 
+            
+            document.getElementById('event-jump').style.display = 'none';
+            showMonologue(jumpSuccess ? "完美跳过水坑！" : "哎呀，踩到水坑里了...");
+        });
+    }
+
+    /* --- 交互2：拼凑碎片原生拖拽实现 --- */
+    function initPuzzleEvent() {
+        let piecesPlaced = 0;
+        for(let i=1; i<=4; i++) {
+            let piece = document.getElementById(`piece-${i}`);
+            let isDragging = false;
+            let startX, startY, initLeft, initTop;
+            
+            piece.addEventListener('touchstart', e => {
+                isDragging = true;
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+                // 获取当前绝对位置
+                let rect = piece.getBoundingClientRect();
+                let areaRect = document.getElementById('puzzle-area').getBoundingClientRect();
+                initLeft = rect.left - areaRect.left;
+                initTop = rect.top - areaRect.top;
+            });
+            
+            piece.addEventListener('touchmove', e => {
+                if(!isDragging) return;
+                e.preventDefault(); // 阻止屏幕滚动
+                let currentX = e.touches[0].clientX;
+                let currentY = e.touches[0].clientY;
+                piece.style.left = (initLeft + currentX - startX) + 'px';
+                piece.style.top = (initTop + currentY - startY) + 'px';
+            });
+            
+            piece.addEventListener('touchend', e => {
+                isDragging = false;
+                // 简单判定：放到目标区域中心即可
+                piece.style.display = 'none'; 
+                piecesPlaced++;
+                if(piecesPlaced === 4) {
+                    finishPuzzle();
+                }
+            });
+        }
+    }
+    
+    function finishPuzzle() {
+        document.getElementById('puzzle-target').style.opacity = 1; // 显现完整墓碑
+        // 手机震动 (需浏览器支持及权限，作为体验补充)
+        if(navigator.vibrate) navigator.vibrate(200); 
+        
+        setTimeout(() => {
+            document.getElementById('event-puzzle').style.display = 'none';
+            showMonologue("这是...这是什么鬼！！！我得离开这里！", 4000);
+            
+            // 延迟弹出资料更新通知
+            setTimeout(() => {
+                showNotify("拾遗", "对方的资料更新了，快去看看", openProfile);
+            }, 2500);
+        }, 2000);
+    }
+
+    /* ================= 阶段四：资料更新与死胡同 ================= */
+    function openProfile() {
+        document.getElementById('profile-sign').innerText = `${playerName}刚才跳水坑${jumpSuccess ? '成功' : '失败'}了。`;
+        document.getElementById('profile-tag').innerText = playerName;
+        document.getElementById('profile-dist').innerText = `距离 120m`; // 距离骤缩
+        document.getElementById('screen-profile').style.display = 'flex';
+    }
+
+    function closeProfile() {
+        document.getElementById('screen-profile').style.display = 'none';
+        
+        // 玩家决定离开，路线反转，进入死胡同
+        mapStage = 3; 
+        document.getElementById('nav-target-text').innerText = "正在重新规划逃生路线...";
+        document.getElementById('map-path').style.transform = "translateX(-50%) rotate(180deg)"; // 路线朝下
+        document.getElementById('player-arrow').style.borderBottomColor = "#888"; // 变灰
+        
+        // 假装还能动一点点
+        distance = 50; 
+        updateDist();
+        
+        setTimeout(() => {
+            document.getElementById('nav-controls').style.display = 'none';
+            document.getElementById('dead-end-msg').style.display = 'block';
+            document.getElementById('dist-display').style.color = "#d0021b";
+            
+            showNotify("拾遗", "警告：距离急速缩短", startCountdown);
+        }, 1500);
+    }
+
+    function startCountdown() {
+        // 距离失控倒数
+        let dropInterval = 800;
+        function drop() {
+            if(distance <= 0) {
+                distance = 0; updateDist();
+                setTimeout(triggerEnding, 1000);
+                return;
+            }
+            distance -= Math.floor(Math.random() * 15) + 5;
+            if(distance < 0) distance = 0;
+            updateDist();
+            
+            dropInterval = Math.max(100, dropInterval * 0.7);
+            setTimeout(drop, dropInterval);
+        }
+        drop();
+    }
+
+    /* ================= 阶段五：终局 ================= */
+    function triggerEnding() {
+        switchScreen('screen-map', 'screen-end');
+        setTimeout(() => {
+            document.getElementById('end-text').style.opacity = 1;
+        }, 1000);
+    }
+
+</script>
+</body>
+</html>
