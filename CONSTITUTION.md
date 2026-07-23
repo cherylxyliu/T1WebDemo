@@ -98,9 +98,9 @@
 ### 技术约束
 | 约束项 | 值 | 备注 |
 |--------|-----|------|
-| 文件数 | 1 (`index.html`) | 单文件架构 |
-| 屏幕方向 | 竖屏锁定 (portrait) | CSS `orientation: portrait` |
-| 触控事件 | touchstart/touchmove/touchend | 不依赖 mouse 事件 |
+| 文件结构 | `index.html` + `styles.css` + `app.js` + `assets/` | 多文件结构，便于继续扩展交互 |
+| 屏幕方向 | 竖屏锁定 (portrait) | 面向移动端单手操作 |
+| 触控事件 | Pointer Events 为主 | 统一滑卡、上推、擦拭与长按 |
 | 视口缩放 | 禁止 (`user-scalable=no`) | iOS全屏模式必需 |
 | 安全区域 | `env(safe-area-inset-*)` | iPhone X+ 刘海屏适配 |
 | 字体栈 | `-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` | iOS原生字体优先 |
@@ -109,10 +109,10 @@
 | 约束项 | 值 | 备注 |
 |--------|-----|------|
 | 核心动词 | Swipe / Hold / Drag | 三种手势覆盖全部交互 |
-| 叙事结构 | 线性5阶段 | 注册→刷卡→导航→死胡同→终局 |
+| 叙事结构 | 线性5阶段 | 注册→刷卡→聊天与导航→异常事件→接管终局 |
 | 恐怖类型 | 心理微恐 | 无 Jump Scare，靠叙事张力 |
-| 玩家昵称 | 动态绑定 | 输入后传递到墓碑/资料页 |
-| 跳水坑结果 | 动态绑定 | 影响资料页签名文案 |
+| 玩家昵称 | 动态绑定 | 输入后传递到权限弹窗与资料页 |
+| 跳水坑结果 | 动态绑定 | 保留为事件反馈与后续气氛素材 |
 
 ### iOS兼容性检查清单
 - [x] `apple-mobile-web-app-capable` meta 标签

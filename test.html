@@ -3,21 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>替身 v1.2 验收测试</title>
+    <title>替身 v1.3 验收测试</title>
     <style>
-        body { margin:0; padding:24px; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background:#101010; color:#f4f4f4; }
-        h1 { margin:0 0 12px; font-size:24px; }
-        p { margin:0 0 20px; color:#a0a0a0; }
-        .pass { color:#74ff9e; }
-        .fail { color:#ff6b6b; }
-        ul { padding-left:20px; line-height:1.7; }
-        code { background:rgba(255,255,255,.08); padding:2px 6px; border-radius:6px; }
-        iframe { width:390px; height:844px; border:1px solid #333; border-radius:20px; margin-top:20px; background:#000; }
+        body {
+            margin: 0;
+            padding: 24px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0d0d0d;
+            color: #f2f2f2;
+        }
+        h1 { margin: 0 0 12px; font-size: 24px; }
+        p { margin: 0 0 20px; color: #a6a6a6; line-height: 1.6; }
+        .pass { color: #78ff9e; }
+        .fail { color: #ff7474; }
+        ul { padding-left: 20px; line-height: 1.7; }
+        code {
+            background: rgba(255,255,255,.08);
+            padding: 2px 6px;
+            border-radius: 6px;
+        }
+        iframe {
+            width: 390px;
+            height: 844px;
+            border: 1px solid #333;
+            border-radius: 20px;
+            margin-top: 20px;
+            background: #000;
+        }
     </style>
 </head>
 <body>
     <h1 id="summary">运行中...</h1>
-    <p>这页会加载 <code>index.html?test=1</code>，检查 v1.2 的强制匹配、写实拇指、黑白地图、擦拭路牌、伪相机结局是否具备。</p>
+    <p>这页会加载 <code>index.html?test=1</code>，检查 v1.3 的 AR 导航、持续上推前进、路牌擦拭隐藏显现、以及“替身接管”终局是否具备。</p>
     <ul id="results"></ul>
     <iframe id="game-frame" src="./index.html?test=1" title="替身测试沙盒"></iframe>
 
@@ -44,7 +61,7 @@
         async function run() {
             const frame = document.getElementById('game-frame');
             await new Promise(resolve => frame.addEventListener('load', resolve, { once: true }));
-            await wait(300);
+            await wait(350);
 
             const win = frame.contentWindow;
             const doc = frame.contentDocument;
@@ -52,7 +69,7 @@
             let passed = 0;
 
             total++;
-            if (addResult(Boolean(win.__gameTestAPI), '暴露测试 API 供状态校验')) passed++;
+            if (addResult(Boolean(win.__gameTestAPI), '暴露 v1.3 测试 API')) passed++;
             if (!win.__gameTestAPI) {
                 finish(total, passed);
                 return;
@@ -62,57 +79,62 @@
             api.resetForTest('测试用户');
 
             total++;
-            api.showMonologueForTest('电影字幕式独白');
+            api.showMonologueForTest('更明显的内心独白');
             const monologueBox = doc.getElementById('monologue');
-            const monologueText = api.getMonologueText();
-            if (addResult(monologueBox && monologueText.includes('电影字幕式独白'), '底部独白条可显示文本且独立存在')) passed++;
+            if (addResult(Boolean(monologueBox && monologueBox.classList.contains('show') && api.getMonologueText().includes('更明显的内心独白')), '内心独白层可独立显示')) passed++;
 
             total++;
             const thumb = api.getThumbState();
-            if (addResult(Boolean(thumb && thumb.hasRealThumb && !thumb.hasBubble && thumb.text === ''), '写实大拇指存在，且没有旧版气泡/文字引导')) passed++;
+            if (addResult(Boolean(thumb && thumb.hasAssetThumb && thumb.hasNoGuideBubble), '写实手部素材存在，且无旧引导气泡')) passed++;
 
             total++;
             api.swipeCreepyLeftForTest();
-            await wait(80);
-            if (addResult(api.getMonologueText().includes('这个人还怪特别的，不如匹配一下试试'), '异常卡左滑弹回并显示指定独白')) passed++;
+            await wait(120);
+            if (addResult(api.getMonologueText().includes('这个人还怪特别的，不如匹配一下试试'), '异常卡左滑会弹回并显示指定独白')) passed++;
 
             total++;
             api.swipeCreepyRightForTest();
-            await wait(2200);
-            if (addResult(doc.getElementById('screen-chat').classList.contains('active') && Boolean(doc.getElementById('address-link')), '异常卡右滑后进入聊天页并出现地址链接')) passed++;
+            await wait(900);
+            if (addResult(doc.getElementById('screen-chat').classList.contains('active') && Boolean(doc.getElementById('address-link')), '异常卡右滑后进入聊天页并保留地址链接')) passed++;
 
             total++;
             api.startMapForTest();
-            const beforeDistance = api.getDistance();
-            api.advanceMapForTest();
-            await wait(80);
-            if (addResult(api.getDistance() < beforeDistance, '地图推进后距离真实缩短')) passed++;
+            await wait(100);
+            const mapState = api.getMapState();
+            if (addResult(Boolean(mapState.hasArView && mapState.hasMapView && mapState.hasTouchZone && mapState.hasThumbOverlay), '地图页已改为上半 AR + 下半 2D 地图结构')) passed++;
 
             total++;
-            const mapShell = doc.querySelector('.map-shell');
-            if (addResult(Boolean(mapShell && doc.getElementById('finder-distance') && doc.getElementById('nav-knob')), '地图为黑白颗粒风格并保留底部拖拽控件')) passed++;
+            const beforeDistance = api.getDistance();
+            api.startWalkingForTest();
+            await wait(450);
+            api.stopWalkingForTest();
+            const afterDistance = api.getDistance();
+            if (addResult(afterDistance < beforeDistance, '按住上推后会持续前进，距离连续缩短')) passed++;
 
             total++;
             api.openSignEventForTest();
-            api.scrubSignForTest(100);
             await wait(80);
-            const sign = api.getSignState();
-            if (addResult(sign.progress === 100 && sign.text.includes('不要回头'), '擦拭路牌可显现“不要回头”')) passed++;
+            const signBefore = api.getSignState();
+            api.scrubSignForTest(45);
+            await wait(80);
+            const signMiddle = api.getSignState();
+            api.scrubSignForTest(100);
+            await wait(120);
+            const signAfter = api.getSignState();
+            if (addResult(signBefore.textVisible === false && signMiddle.textVisible === false && signAfter.textVisible === true && signAfter.progress === 100, '路牌文字默认隐藏，擦拭完成后才出现“不要回头”')) passed++;
 
             total++;
-            if (addResult(api.hasPuzzleStage() === false, '墓碑拼图阶段已删除')) passed++;
-
-            total++;
-            if (addResult(api.usesRealCamera() === false && !('getUserMedia' in api), '结局不调用真实相机权限')) passed++;
+            if (addResult(api.usesRealCamera() === false, '终局不调用真实相机权限')) passed++;
 
             total++;
             api.triggerEndingForTest();
-            await wait(1450);
-            const permissionShown = doc.getElementById('permission-dialog').classList.contains('show');
-            api.startFakeCameraForTest();
-            await wait(2700);
-            const finalShown = doc.getElementById('final-copy').classList.contains('show');
-            if (addResult(permissionShown && finalShown, '伪系统权限弹窗后进入伪前置摄像头并显示注销结局')) passed++;
+            await wait(500);
+            let endingState = api.getEndingState();
+            const permissionOk = endingState.permissionVisible && endingState.allowButtonCount === 1;
+            api.clickAllowForTest();
+            await wait(4200);
+            endingState = api.getEndingState();
+            if (addResult(permissionOk && endingState.focusLocked && endingState.desktopShown && endingState.handTookOver && endingState.finalTitleShown, '终局具备单按钮权限→识别锁定→伪桌面→替身之手接管→标题淡入')) passed++;
 
             finish(total, passed);
         }
