@@ -76,6 +76,13 @@
             }
 
             const api = win.__gameTestAPI;
+
+            total++;
+            const introScreen = doc.getElementById('screen-intro');
+            const matchScreen = doc.getElementById('screen-match');
+            const matchStyle = matchScreen ? win.getComputedStyle(matchScreen) : null;
+            if (addResult(Boolean(introScreen && introScreen.classList.contains('active') && matchStyle && matchStyle.display === 'none'), '初始打开时显示介绍页，MATCH 过场不会直接裸露')) passed++;
+
             api.resetForTest('测试用户');
 
             total++;
